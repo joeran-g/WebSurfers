@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+.env
+.env.local
+.vscode/
+*.log
+*.sqlite
+*.sqlite3
+dist/
+build/
+coverage/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+# OS temporary files
+.Trash-
