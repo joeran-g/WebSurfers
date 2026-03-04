@@ -1,0 +1,27 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+/* THEME VARIABLES */
+:root {
+  --bg-main: #0f172a;
+  --bg-secondary: #1e293b;
+  --text-color: wheat;
+  --canvas-bg: #0f172a;
+}
+
+[data-theme="light"] {
+  --bg-main: #dbeafe;
+  --bg-secondary: #bfdbfe;
+  --text-color: #1e293b;
+  --canvas-bg: #e0f2fe;
+}

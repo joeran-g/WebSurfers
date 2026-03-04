@@ -1,0 +1,51 @@
+.header {
+  height: 55px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.header__title {
+  font-size: clamp(20px, 2.2vw, 28px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: linear-gradient(90deg, wheat, #22d3ee);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition: filter 0.3s ease;
+}
+
+/* Subtle glow only in dark mode */
+[data-theme="dark"] .header__title {
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.4));
+}
+
+/* Stronger contrast in light mode */
+[data-theme="light"] .header__title {
+  background: linear-gradient(90deg, #1e3a8a, #0ea5e9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.header__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.header__theme,
+.header__button {
+  font-size: 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.header__theme:hover,
+.header__button:hover {
+  transform: scale(1.1);
+}

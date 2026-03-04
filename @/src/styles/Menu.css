@@ -1,0 +1,84 @@
+.menu__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  opacity: 1;
+  transition: opacity 0.8s ease;
+}
+
+.menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 300px;
+  background: var(--bg-secondary);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.35);
+
+  /* START OUTSIDE SCREEN */
+  transform: translateX(110%);
+  opacity: 0;
+
+  /* 0.8s smooth slide */
+  transition: 
+    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.8s ease;
+}
+
+.menu.open {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.menu__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.menu__close {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.menu__section {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.menu__button {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background 0.4s ease, transform 0.7s ease;
+  text-align: left;
+}
+
+.menu__button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(2px);
+}
+
+.menu__button--primary {
+  border: none;
+  background: linear-gradient(90deg, #3b82f6, #22d3ee);
+  color: white;
+}
+
+.menu__divider {
+  margin-top: 20px;
+  border-color: rgba(255, 255, 255, 0.08);
+}
