@@ -1,13 +1,42 @@
+import { useEffect, useState } from "react";
 import "../styles/Menu.css";
 
 export default function Menu({ onClose }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    // Small delay ensures browser applies initial state before transition
+    const timer = setTimeout(() => {
+      setIsOpen(true);
+    }, 10);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // trigger closing animation then notify parent
+  function handleClose() {
+    setIsOpen(false);
+  }
+
+  function onTransitionEnd(e) {
+    if (!isOpen && e.propertyName === "transform") {
+      onClose();
+    }
+  }
+
   return (
     <>
-      <div className="menu__overlay" onClick={onClose} />
-      <aside className="menu open">
+      <div
+        className={`menu__overlay ${isOpen ? "open" : ""}`}
+        onClick={handleClose}
+      />
+      <aside
+        className={`menu ${isOpen ? "open" : ""}`}
+        onTransitionEnd={onTransitionEnd}
+      >
         <div className="menu__header">
           <h2>Menu</h2>
-          <button className="menu__close" onClick={onClose}>✕</button>
+          <button className="menu__close" onClick={handleClose}>✕</button>
         </div>
 
         <div className="menu__section">
