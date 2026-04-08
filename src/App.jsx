@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Header from "./components/Header";
-import Game from "./components/Game";
+import Game from "./components/Game/Game";
 import Menu from "./components/Menu";
 import "./styles/App.css";
 

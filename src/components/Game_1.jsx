@@ -17,7 +17,7 @@ const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 2.0;
 const ZOOM_SPEED = 0.1;
 
-export default function Game() {
+export default function Game_1() {
   const [world, setWorld] = useState({
     objects: [
       { id: "player", type: "player", x: 70, y: 50 },
@@ -184,7 +184,7 @@ export default function Game() {
     const smoothed = [];
     const factor = LINE_SMOOTHING_FACTOR;
     
-    smoothed.push(points[0], points[1]); // First point stays
+    //smoothed.push(points[0], points[1]); // First point stays
     
     for (let i = 2; i < points.length - 2; i += 2) {
       const x0 = points[i - 2];
@@ -321,8 +321,8 @@ export default function Game() {
           const speed = Math.sqrt(newVx * newVx + newVy * newVy);
           const lineAngle = Math.atan(slope);
           
-          newVx = speed * Math.cos(lineAngle) * 0.95;
-          newVy = speed * Math.sin(lineAngle) * 0.95;
+          newVx = speed * Math.cos(lineAngle) * 1.005;
+          newVy = speed * Math.sin(lineAngle) * 1.005;
         }
 
         // Check if fallen off world
