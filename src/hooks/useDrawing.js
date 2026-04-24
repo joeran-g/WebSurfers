@@ -29,7 +29,7 @@ export default function useDrawing(screenToWorld) {
     [screenToWorld]
   );
 
-  const handleMouseMove = useCallback(
+  const handleMouseMove = useCallback( //Throttle this in the future
     (e) => {
       if (!isDrawing.current || !currentLine.current) return false;
 
