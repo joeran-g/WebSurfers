@@ -1,75 +1,76 @@
 import { useCallback, useRef, useState } from "react";
 
-export default function useDrawing(screenToWorld) {
+export default function useDrawing(screenToWorld, isDrawingMode) {
   const [lines, setLines] = useState([]);
   const isDrawing = useRef(false);
-  const drawEnabled = useRef(false);
   const currentLine = useRef(null);
 
-  const enableDrawing = useCallback(() => {
-    drawEnabled.current = true;
-  }, []);
-
   const handleMouseDown = useCallback(
-    (e) => {
-      const stage = e.target.getStage();
-      if (!drawEnabled.current || e.target !== stage) return false;
+    (event) => {
+      if (!isDrawingMode) return false;
+
+      const stage = event.target.getStage();
+      if (!stage) return false;
 
       const pointer = stage.getPointerPosition();
       if (!pointer) return false;
 
-      const pos = screenToWorld(pointer.x, pointer.y);
-
+      const position = screenToWorld(pointer);
       isDrawing.current = true;
-      currentLine.current = { points: [pos.x, pos.y] };
+      currentLine.current = {
+        id: `line-${Date.now()}`,
+        type: "line",
+        x: position.x,
+        y: position.y,
+        points: [0, 0],
+      };
       setLines([currentLine.current]);
-
       return true;
     },
-    [screenToWorld]
+    [screenToWorld, isDrawingMode]
   );
 
-  const handleMouseMove = useCallback( //Throttle this in the future
-    (e) => {
+  const handleMouseMove = useCallback(
+    (event) => {
       if (!isDrawing.current || !currentLine.current) return false;
 
-      const stage = e.target.getStage();
+      const stage = event.target.getStage();
+      if (!stage) return false;
+
       const pointer = stage.getPointerPosition();
       if (!pointer) return false;
 
-      const pos = screenToWorld(pointer.x, pointer.y);
+      const position = screenToWorld(pointer);
+      const dx = position.x - currentLine.current.x;
+      const dy = position.y - currentLine.current.y;
 
       currentLine.current = {
         ...currentLine.current,
-        points: [...currentLine.current.points, pos.x, pos.y],
+        points: [...currentLine.current.points, dx, dy],
       };
       setLines([currentLine.current]);
-
       return true;
     },
     [screenToWorld]
   );
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing.current) return null;
+    if (!isDrawing.current || !currentLine.current) {
+      setLines([]);
+      return null;
+    }
 
     isDrawing.current = false;
-    drawEnabled.current = false;
-
-    const line = currentLine.current;
+    const finishedLine = currentLine.current;
     currentLine.current = null;
     setLines([]);
 
-    if (line && line.points.length >= 4) {
-      return line;
-    }
-
-    return null;
+    if (finishedLine.points.length < 4) return null;
+    return finishedLine;
   }, []);
 
   return {
     lines,
-    enableDrawing,
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,

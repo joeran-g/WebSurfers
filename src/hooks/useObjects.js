@@ -1,88 +1,83 @@
-import { useState, useRef } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 export default function useObjects(initialObjects = []) {
   const [objects, setObjects] = useState(initialObjects);
   const [selectedId, setSelectedId] = useState(null);
-  const [draftPositions, setDraftPositions] = useState({});
+  const [pendingPositions, setPendingPositions] = useState({});
 
-  function handleObjectDragEnd(id, e) {
-    const { x, y } = e.target.position();
-    setDraftPositions((prev) => ({ ...prev, [id]: { x, y } }));
-    setSelectedId(id);
-  }
+  const selectedObject = useMemo(() => {
+    if (!selectedId) return null;
+    const object = objects.find((item) => item.id === selectedId);
+    if (!object) return null;
+    const pending = pendingPositions[selectedId];
+    return pending ? { ...object, ...pending } : object;
+  }, [objects, pendingPositions, selectedId]);
 
-  function handleLineDragEnd(id, e) {
-    const offsetX = e.target.x();
-    const offsetY = e.target.y();
-    setDraftPositions((prev) => ({
-      ...prev,
-      [id]: {
-        points: (objects.find((obj) => obj.id === id)?.points || []).map(
-          (value, index) => (index % 2 === 0 ? value + offsetX : value + offsetY)
-        ),
-      },
-    }));
-    e.target.position({ x: 0, y: 0 });
-    setSelectedId(id);
-  }
+  const handleObjectDragEnd = useCallback((id, event) => {
+    const { x, y } = event.target.position();
+    setPendingPositions((prev) => ({ ...prev, [id]: { x, y } }));
+  }, []);
 
-  function saveSelectedPosition() {
+  const handleLineDragEnd = useCallback((id, event) => {
+    const { x, y } = event.target.position();
+    setPendingPositions((prev) => ({ ...prev, [id]: { x, y } }));
+  }, []);
+
+  const saveSelectedObjectPosition = useCallback(() => {
     if (!selectedId) return;
-    const draft = draftPositions[selectedId];
-    if (!draft) return;
     setObjects((prev) =>
-      prev.map((obj) => {
-        if (obj.id !== selectedId) return obj;
-        if (draft.points) return { ...obj, points: draft.points };
-        return { ...obj, x: draft.x, y: draft.y };
-      })
+      prev.map((obj) =>
+        obj.id === selectedId
+          ? { ...obj, ...(pendingPositions[selectedId] || {}) }
+          : obj
+      )
     );
-    setDraftPositions((prev) => {
+    setPendingPositions((prev) => {
       const next = { ...prev };
       delete next[selectedId];
       return next;
     });
-  }
+  }, [pendingPositions, selectedId]);
 
-  function deleteSelectedObject() {
+  const clearPendingPosition = useCallback(() => {
     if (!selectedId) return;
-    const obj = objects.find((o) => o.id === selectedId);
-    if (!obj) return;
-    const sameTypeCount = objects.filter((o) => o.type === obj.type).length;
-    if ((obj.type === "player" || obj.type === "flag") && sameTypeCount <= 1) return;
-    setObjects((prev) => prev.filter((o) => o.id !== selectedId));
-    setDraftPositions((prev) => {
+    setPendingPositions((prev) => {
+      const next = { ...prev };
+      delete next[selectedId];
+      return next;
+    });
+  }, [selectedId]);
+
+  const deleteSelectedObject = useCallback(() => {
+    setObjects((prev) => prev.filter((obj) => obj.id !== selectedId));
+    setPendingPositions((prev) => {
       const next = { ...prev };
       delete next[selectedId];
       return next;
     });
     setSelectedId(null);
-  }
+  }, [selectedId]);
 
-  function canDeleteSelectedObject() {
+  const canDeleteSelectedObject = useCallback(() => {
     if (!selectedId) return false;
-    const obj = objects.find((o) => o.id === selectedId);
+    const obj = objects.find((item) => item.id === selectedId);
     if (!obj) return false;
-    const sameTypeCount = objects.filter((o) => o.type === obj.type).length;
-    return obj.type === "line" || sameTypeCount > 1;
-  }
-
-  function isSelectedMoveSaved() {
-    return selectedId != null && !!draftPositions[selectedId];
-  }
+    if (obj.type === "player") return objects.filter((item) => item.type === "player").length > 1;
+    if (obj.type === "flag") return objects.filter((item) => item.type === "flag").length > 1;
+    return true;
+  }, [objects, selectedId]);
 
   return {
     objects,
     setObjects,
     selectedId,
+    selectedObject,
     setSelectedId,
-    draftPositions,
-    setDraftPositions,
     handleObjectDragEnd,
     handleLineDragEnd,
-    saveSelectedPosition,
     deleteSelectedObject,
     canDeleteSelectedObject,
-    isSelectedMoveSaved,
+    saveSelectedObjectPosition,
+    clearPendingPosition,
   };
 }

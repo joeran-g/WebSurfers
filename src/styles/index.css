@@ -16,7 +16,7 @@ html, body, #root {
   --bg-main: #0f172a;
   --bg-secondary: #1e293b;
   --text-color: wheat;
-  --canvas-bg: #0f172a;
+  --canvas-bg: #1a1f2e;
 }
 
 [data-theme="light"] {

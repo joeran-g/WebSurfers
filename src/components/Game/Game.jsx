@@ -1,7 +1,5 @@
-import planck from "planck-js";
-import confetti from "canvas-confetti";
-import { Stage, Layer, Rect, Line, Group, Text } from "react-konva";
-import { useState, useRef, useEffect } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { Stage, Layer, Rect, Group } from "react-konva";
 
 import Player from "./objects/Player";
 import Flag from "./objects/Flag";
@@ -10,183 +8,359 @@ import useCamera from "../../hooks/useCamera";
 import useDrawing from "../../hooks/useDrawing";
 import usePhysics from "../../hooks/usePhysics";
 import useObjects from "../../hooks/useObjects";
+import useApi from "../../hooks/useApi";
+import "../../styles/Game.css";
+import { useTheme } from "../../context/ThemeContext";
 
-const WORLD_WIDTH = 4000;
-const WORLD_HEIGHT = 2000;
-const SCALE = 30;
 const DEFAULT_WORLD = [
   { id: "player", type: "player", x: 70, y: 50 },
   { id: "flag", type: "flag", x: 750, y: 650 },
 ];
 
-export default function Game() {
+const DEFAULT_CAMERA = { x: 0, y: 0, zoom: 1 };
+
+function Game(props, ref) {
   const [physicsEnabled, setPhysicsEnabled] = useState(false);
   const [hasWon, setHasWon] = useState(false);
-  const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const [toolMode, setToolMode] = useState(null);
+  const [objectMenuPos, setObjectMenuPos] = useState(null);
   const [, forceRender] = useState(0);
 
   const containerRef = useRef();
+  const runStartState = useRef(null);
 
-  const { stageSize, setStageSize, camera, setCamera, screenToWorld, handleWheel, startPan, movePan, endPan, isPanning } = useCamera();
-  const drawing = useDrawing(screenToWorld);
-  const { objects, setObjects, selectedId, setSelectedId, draftPositions, setDraftPositions, handleObjectDragEnd, handleLineDragEnd, saveSelectedPosition, deleteSelectedObject, canDeleteSelectedObject, isSelectedMoveSaved } = useObjects(DEFAULT_WORLD);
-  const { buildWorld, worldRef, playerBody } = usePhysics(objects, physicsEnabled, stageSize, camera, setCamera, setHasWon, hasWon, forceRender);
+  const {
+    stageSize,
+    setStageSize,
+    camera,
+    setCamera,
+    screenToWorld,
+    handleWheel,
+    startPan,
+    movePan,
+    endPan,
+    isPanning,
+    resetCamera,
+  } = useCamera(DEFAULT_CAMERA);
+  const drawing = useDrawing(screenToWorld, toolMode === "draw");
+  const {
+    objects,
+    setObjects,
+    selectedId,
+    selectedObject,
+    setSelectedId,
+    handleObjectDragEnd,
+    handleLineDragEnd,
+    deleteSelectedObject,
+    canDeleteSelectedObject,
+    saveSelectedObjectPosition,
+    clearPendingPosition,
+  } = useObjects(DEFAULT_WORLD);
 
-  function startGame() {
-    buildWorld();
-    setHasWon(false);
-    setPhysicsEnabled(true);
-  }
+  const { buildWorld, playerBody } = usePhysics(
+    objects,
+    physicsEnabled,
+    stageSize,
+    setCamera,
+    setHasWon,
+    hasWon,
+    forceRender
+  );
+  const { getWorlds } = useApi();
 
-  function stopGame() {
-    setCamera({ x: 0, y: 0, zoom: 1 });
-    setPhysicsEnabled(false);
-    setHasWon(false);
-    worldRef.current = null;
-    setDraftPositions({});
-    setSelectedId(null);
-  }
-
-  function handleMouseDown(e) {
-    if (physicsEnabled) return;
-    if (drawing.handleMouseDown(e)) return;
-    const stage = e.target.getStage();
-    if (e.target === stage) {
-      setSelectedId(null);
-      if (!selectedId) startPan(e);
-      return;
-    }
-    if (!selectedId) startPan(e);
-  }
-
-  function handleMouseMove(e) {
-    if (physicsEnabled) return;
-    if (drawing.handleMouseMove(e)) return;
-    if (isPanning.current) movePan(e);
-  }
-
-  function handleMouseUp() {
-    if (physicsEnabled) return;
-    const newLine = drawing.handleMouseUp();
-    if (newLine) {
-      setObjects((prev) => [...prev, { id: "line-" + Date.now(), type: "line", points: newLine.points }]);
-    }
-    endPan();
-  }
+  useEffect(() => {
+    const loadPublicWorlds = async () => {
+      const worlds = await getWorlds();
+      if (!worlds?.length) return;
+      const weekly = worlds.find((world) => world.is_weekly_world);
+      const selected = weekly || worlds[0];
+      if (selected?.world_data) {
+        setObjects(selected.world_data);
+      }
+    };
+    loadPublicWorlds();
+  }, [getWorlds, setObjects]);
 
   useEffect(() => {
     const resize = () => {
-      const w = containerRef.current?.offsetWidth ?? window.innerWidth;
-      const h = containerRef.current?.offsetHeight ?? window.innerHeight;
-      setStageSize({ width: w, height: h });
+      const width = containerRef.current?.offsetWidth ?? window.innerWidth;
+      const height = containerRef.current?.offsetHeight ?? window.innerHeight;
+      setStageSize({ width, height });
     };
     resize();
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [setStageSize]);
 
-  const selectedObject = selectedId ? objects.find((obj) => obj.id === selectedId) : null;
+  useEffect(() => {
+    if (!selectedId) {
+      setObjectMenuPos(null);
+      return;
+    }
 
-  function toPixels(value) {
-    return value * SCALE;
-  }
+    const obj = selectedObject || objects.find((item) => item.id === selectedId);
+    if (!obj) return;
+
+    setObjectMenuPos({
+      x: obj.x * camera.zoom + camera.x,
+      y: obj.y * camera.zoom + camera.y + 40,
+    });
+  }, [selectedId, selectedObject, objects, camera]);
+
+  useEffect(() => {
+    if (toolMode !== "select") {
+      setSelectedId(null);
+      setObjectMenuPos(null);
+    }
+  }, [toolMode, setSelectedId]);
+
+  const resetRun = useCallback(() => {
+    setPhysicsEnabled(false);
+    setHasWon(false);
+    if (runStartState.current) {
+      setObjects(JSON.parse(JSON.stringify(runStartState.current)));
+    }
+    resetCamera(DEFAULT_CAMERA);
+  }, [setObjects, resetCamera]);
+
+  
+
+  useEffect(() => {
+    if (hasWon && physicsEnabled) {
+      setPhysicsEnabled(false);
+    }
+  }, [hasWon, physicsEnabled]);
+
+  const startGame = () => {
+    runStartState.current = JSON.parse(JSON.stringify(objects));
+    setSelectedId(null);
+    setObjectMenuPos(null);
+    setHasWon(false);
+    setPhysicsEnabled(true);
+    resetCamera(DEFAULT_CAMERA);
+    buildWorld();
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.code === "KeyR" && physicsEnabled) {
+        e.preventDefault();
+        resetRun();
+      }
+
+      if (e.code === "Space" && !physicsEnabled) {
+        e.preventDefault();
+        startGame();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [physicsEnabled, resetRun, startGame]);
+
+  const stopGame = () => {
+    setPhysicsEnabled(false);
+    setHasWon(false);
+    setSelectedId(null);
+    setObjectMenuPos(null);
+    resetCamera(DEFAULT_CAMERA);
+  };
+
+  const handleMouseDown = (e) => {
+    const stage = e.target.getStage();
+    if (!stage) return;
+
+    const clickedOnStageBackground =
+      e.target === stage || e.target.name() === "background";
+
+    if (physicsEnabled) {
+      return;
+    }
+
+    if (toolMode === "draw") {
+      if (drawing.handleMouseDown(e)) return;
+      if (clickedOnStageBackground) setSelectedId(null);
+      return;
+    }
+
+    if (toolMode === "select") {
+      if (clickedOnStageBackground) {
+        setSelectedId(null);
+        setObjectMenuPos(null);
+      }
+      return;
+    }
+
+    if (clickedOnStageBackground && e.evt.button === 0) {
+      startPan(e.evt);
+      return;
+    }
+
+    if (clickedOnStageBackground) {
+      setSelectedId(null);
+      setObjectMenuPos(null);
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (toolMode === "draw") {
+      drawing.handleMouseMove(e);
+    } else if (isPanning) {
+      movePan(e.evt);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (toolMode === "draw") {
+      const finishedLine = drawing.handleMouseUp();
+      if (finishedLine) {
+        setObjects((prev) => [...prev, finishedLine]);
+      }
+    }
+    if (isPanning) {
+      endPan();
+    }
+  };
+
+  const renderObject = (obj) => {
+    const renderObj = obj.id === selectedId && selectedObject ? selectedObject : obj;
+    const isPlayer = renderObj.type === "player";
+    const playerPos =
+      isPlayer && physicsEnabled && playerBody.current
+        ? playerBody.current.getPosition()
+        : null;
+
+    const x = playerPos ? playerPos.x * 30 : renderObj.x ?? 0;
+    const y = playerPos ? playerPos.y * 30 : renderObj.y ?? 0;
+
+    let props = {
+      x,
+      y,
+      draggable: toolMode === "select",
+      selected: selectedId === renderObj.id && toolMode === "select",
+      onSelect: () => {
+        if (toolMode === "select") {
+          setSelectedId(renderObj.id);
+        }
+      },
+      onDragEnd: (event) => {
+        if (renderObj.type === "line") {
+          handleLineDragEnd(renderObj.id, event);
+        } else {
+          handleObjectDragEnd(renderObj.id, event);
+        }
+      },
+    };
+
+    if (renderObj.type === "player") return <Player key={renderObj.id} {...props} />;
+    if (renderObj.type === "flag") return <Flag key={renderObj.id} {...props} />;
+    if (renderObj.type === "line")
+      return <LineObj key={renderObj.id} {...props} points={renderObj.points} />;
+    return null;
+  };
+
+  const { theme } = useTheme();
+
+  const getCanvasBg = () => {
+    return theme === "light" ? "#e0f2fe" : "#1a1f2e";
+  };
 
   return (
-    <div ref={containerRef} style={{ width: "100%", height: "100%" }}>
-      <Stage width={stageSize.width} height={stageSize.height} onWheel={(e) => !physicsEnabled && handleWheel(e)} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}>
-        <Layer x={camera.x} y={camera.y} scaleX={camera.zoom} scaleY={camera.zoom}>
-          <Rect width={WORLD_WIDTH} height={WORLD_HEIGHT} fill="#5f6782" listening={false} />
-          {drawing.lines.map((line, index) => <Line key={`preview-${index}`} points={line.points} stroke="white" strokeWidth={4} lineCap="round" lineJoin="round" />)}
-          {objects.map((obj) => {
-            const draft = draftPositions[obj.id];
-            const position = draft?.x !== undefined ? { x: draft.x, y: draft.y } : { x: obj.x, y: obj.y };
-            const points = draft?.points || obj.points;
-
-            if (obj.type === "player") {
-              const physicsPos = physicsEnabled && playerBody.current ? playerBody.current.getPosition() : null;
-              const x = physicsPos ? toPixels(physicsPos.x) : position.x;
-              const y = physicsPos ? toPixels(physicsPos.y) : position.y;
-
-              return (
-                <Player
-                  key={obj.id}
-                  x={x}
-                  y={y}
-                  draggable={!physicsEnabled}
-                  onSelect={() => setSelectedId(obj.id)}
-                  onDragEnd={(e) => handleObjectDragEnd(obj.id, e)}
-                />
-              );
-            }
-
-            if (obj.type === "flag") {
-              return (
-                <Flag
-                  key={obj.id}
-                  x={position.x}
-                  y={position.y}
-                  draggable={!physicsEnabled}
-                  onSelect={() => setSelectedId(obj.id)}
-                  onDragEnd={(e) => handleObjectDragEnd(obj.id, e)}
-                />
-              );
-            }
-
-            if (obj.type === "line") {
-              return (
-                <LineObj
-                  key={obj.id}
-                  points={points}
-                  draggable={!physicsEnabled}
-                  selected={selectedId === obj.id}
-                  onSelect={() => setSelectedId(obj.id)}
-                  onDragEnd={(e) => handleLineDragEnd(obj.id, e)}
-                />
-              );
-            }
-
-            return null;
-          })}
-        </Layer>
-
-        <Layer>
-          <Text text="Menu" x={10} y={10} fill="white" onClick={() => setToolMenuOpen((prev) => !prev)} />
-          {toolMenuOpen && (
-            <>
-              <Text text="Draw Line" x={10} y={40} fill="white" onClick={drawing.enableDrawing} />
-              <Text text="Start" x={10} y={70} fill="#51cf66" onClick={startGame} />
-              <Text text="Stop" x={10} y={100} fill="#ff6b6b" onClick={stopGame} />
-            </>
-          )}
-        </Layer>
-
-        {!physicsEnabled && selectedObject && (
+    <div className="game">
+      <div ref={containerRef} className="game__canvas-wrapper">
+        <Stage
+          width={stageSize.width}
+          height={stageSize.height}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onWheel={handleWheel}
+          style={{ cursor: isPanning ? "grabbing" : toolMode === "draw" ? "crosshair" : "default" }}
+        >
           <Layer>
-            <Group x={stageSize.width - 180} y={20}>
-              <Rect width={170} height={110} fill="rgba(40,40,40,0.95)" stroke="white" strokeWidth={2} cornerRadius={8} />
-              <Text text={`Selected: ${selectedObject.type}`} x={10} y={12} fontSize={14} fill="white" />
-              <Text text={isSelectedMoveSaved() ? "Save new position" : "Move object to reposition"} x={10} y={35} fontSize={12} fill="#c9c9c9" />
-              <Text text="Save Position" x={10} y={55} fontSize={14} fill={isSelectedMoveSaved() ? "#51cf66" : "#777"} onClick={saveSelectedPosition} />
-              <Line points={[10, 80, 160, 80]} stroke="white" strokeWidth={1} />
-              <Text text="Delete Object" x={10} y={90} fontSize={14} fill={canDeleteSelectedObject() ? "#ff6b6b" : "#777"} onClick={canDeleteSelectedObject() ? deleteSelectedObject : undefined} />
+            <Rect
+              name="background"
+              x={0}
+              y={0}
+              width={stageSize.width}
+              height={stageSize.height}
+              fill={getCanvasBg()}
+            />
+            <Group x={camera.x} y={camera.y} scaleX={camera.zoom} scaleY={camera.zoom}>
+              {objects.map(renderObject)}
+              {drawing.lines[0] && (
+                <LineObj
+                  key="draft-line"
+                  x={drawing.lines[0].x}
+                  y={drawing.lines[0].y}
+                  points={drawing.lines[0].points}
+                />
+              )}
             </Group>
           </Layer>
+        </Stage>
+
+        <div className="game__controls">
+          <button onClick={startGame} disabled={physicsEnabled}>Start Game</button>
+          <button onClick={stopGame} disabled={!physicsEnabled}>Stop Game</button>
+          <button onClick={resetRun} disabled={!physicsEnabled}>Reset Run</button>
+        </div>
+
+        <div className="tool-menu">
+          {!toolMode ? (
+            <>
+              <button onClick={() => setToolMode("draw")}>Draw Line</button>
+              <button onClick={() => setToolMode("select")}>Move/Delete Object</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setToolMode(null)}>Back</button>
+              <div style={{ color: "#ccc", fontSize: "12px", marginTop: "4px" }}>
+                {toolMode === "draw" ? "Click and drag to draw." : "Click an object to select it."}
+              </div>
+            </>
+          )}
+        </div>
+
+        {toolMode === "select" && selectedId && objectMenuPos && (
+          <div className="object-menu" style={{ top: objectMenuPos.y, left: objectMenuPos.x }}>
+            <button
+              onClick={() => {
+                saveSelectedObjectPosition();
+                setSelectedId(null);
+                setObjectMenuPos(null);
+              }}
+            >
+              Save position
+            </button>
+            <button
+              onClick={() => {
+                clearPendingPosition();
+                setSelectedId(null);
+                setObjectMenuPos(null);
+              }}
+            >
+              Cancel
+            </button>
+            {canDeleteSelectedObject() && (
+              <button
+                onClick={() => {
+                  deleteSelectedObject();
+                  setSelectedId(null);
+                  setObjectMenuPos(null);
+                }}
+              >
+                Delete
+              </button>
+            )}
+          </div>
         )}
 
-        {physicsEnabled && (
-          <Layer>
-            <Text text="Controls: A/D or ←/→ to move, Space to jump" x={10} y={stageSize.height - 30} fill="white" fontSize={16} />
-          </Layer>
-        )}
-
-        {hasWon && (
-          <Layer>
-            <Rect x={0} y={0} width={stageSize.width} height={stageSize.height} fill="rgba(0,0,0,0.6)" />
-            <Text text="🎉 YOU WIN! 🎉" x={stageSize.width / 2} y={stageSize.height / 2} fontSize={48} fill="white" align="center" offsetX={120} offsetY={24} />
-            <Text text="Click to continue" x={stageSize.width / 2} y={stageSize.height / 2 + 80} fontSize={20} fill="white" align="center" offsetX={70} onClick={stopGame} />
-          </Layer>
-        )}
-      </Stage>
+        {physicsEnabled && <div className="game__status">Physics enabled — arrow left/right to move, space to jump</div>}
+        {hasWon && <div className="game__win">You Won!</div>}
+      </div>
     </div>
   );
 }
+
+export default forwardRef(Game);

@@ -1,174 +1,251 @@
-import { useRef, useEffect } from "react";
-import planck from "planck-js";
+import { useCallback, useEffect, useRef } from "react";
+import * as planck from "planck-js";
 
 const SCALE = 30;
-const FLAG_RADIUS = 50;
+const FLAG_RADIUS = 25;
 
-const WALK_FORCE = 0.08;
-const AIR_CONTROL_FORCE = 0.03;
-const MAX_SPEED = 8;
+const WALK_FORCE = 0.2;
+const AIR_CONTROL_FORCE = 0.1;
+const MAX_SPEED = 50;
+const MAX_UP_SPEED = 12;
+const MAX_DOWN_SPEED = 25;
 const JUMP_IMPULSE = 6;
-const MAX_VERTICAL_SPEED = 12;
-const GROUND_DAMPING = 0.1;
-const AIR_DAMPING = 0.02;
+const SURF_BOOST = 0.15;
 
-export default function usePhysics(objects, physicsEnabled, stageSize, camera, setCamera, setHasWon, hasWon, forceRender) {
+export default function usePhysics(
+  objects,
+  physicsEnabled,
+  stageSize,
+  setCamera,
+  setHasWon,
+  hasWon,
+  forceRender,
+  onRunReset
+) {
   const worldRef = useRef(null);
   const playerBody = useRef(null);
-  const playerOnGround = useRef(false);
+  const isGrounded = useRef(false);
+  const lastContactNormal = useRef(planck.Vec2(0, 1));
+  const contactCount = useRef(0);
+  const noContactTimer = useRef(0);
   const keys = useRef({ left: false, right: false, jump: false });
+  const bodiesRef = useRef(new Map());
 
-  function toWorld(x) {
-    return x / SCALE;
-  }
+  const toWorld = useCallback((pixels) => pixels / SCALE, []);
+  const toPixels = useCallback((world) => world * SCALE, []);
 
-  function toPixels(x) {
-    return x * SCALE;
-  }
+  const buildWorld = useCallback(() => {
+    const world = new planck.World({ gravity: planck.Vec2(0, 10) });
+    worldRef.current = world;
+    bodiesRef.current = new Map();
+    playerBody.current = null;
+    isGrounded.current = false;
+    lastContactNormal.current = planck.Vec2(0, 1);
+    contactCount.current = 0;
+    noContactTimer.current = 0;
 
-  function buildWorld() {
-    const world = new planck.World({
-      gravity: planck.Vec2(0, 10),
-      allowSleep: true,
-      continuousPhysics: true,
+    world.on("begin-contact", (contact) => {
+      const fa = contact.getFixtureA();
+      const fb = contact.getFixtureB();
+      const bodyA = fa.getBody();
+      const bodyB = fb.getBody();
+
+      if ((bodyA === playerBody.current || bodyB === playerBody.current) && !fa.isSensor() && !fb.isSensor()) {
+        contactCount.current += 1;
+        isGrounded.current = true;
+        const manifold = contact.getWorldManifold();
+        if (manifold && manifold.normal) {
+          lastContactNormal.current = manifold.normal;
+        }
+      }
     });
 
-    playerBody.current = null;
-    playerOnGround.current = false;
+    world.on("end-contact", (contact) => {
+      const fa = contact.getFixtureA();
+      const fb = contact.getFixtureB();
+      const bodyA = fa.getBody();
+      const bodyB = fb.getBody();
+
+      if ((bodyA === playerBody.current || bodyB === playerBody.current) && !fa.isSensor() && !fb.isSensor()) {
+        contactCount.current = Math.max(0, contactCount.current - 1);
+        if (contactCount.current === 0) {
+          isGrounded.current = false;
+        }
+      }
+    });
 
     objects.forEach((obj) => {
       if (obj.type === "player") {
         const body = world.createBody({
           type: "dynamic",
           position: planck.Vec2(toWorld(obj.x), toWorld(obj.y)),
-          fixedRotation: true,
-          bullet: true,
         });
-
-        body.createFixture(planck.Circle(toWorld(10)), {
-          density: 4,
-          friction: 0.02,
-          restitution: 0.01,
+        body.createFixture(planck.Circle(toWorld(15)), {
+          density: 1,
+          friction: 0,
+          restitution: 0.1,
         });
-
-        body.setLinearDamping(AIR_DAMPING);
+        body.setLinearDamping(0.1);
+        body.setFixedRotation(true);
         playerBody.current = body;
-      }
-
-      if (obj.type === "line") {
-        const body = world.createBody();
-        for (let i = 0; i < obj.points.length - 2; i += 2) {
-          const v1 = planck.Vec2(toWorld(obj.points[i]), toWorld(obj.points[i + 1]));
-          const v2 = planck.Vec2(toWorld(obj.points[i + 2]), toWorld(obj.points[i + 3]));
-          body.createFixture(planck.Edge(v1, v2), {
-            friction: 0.02,
-            restitution: 0.001,
+        bodiesRef.current.set(obj.id, body);
+      } else if (obj.type === "flag") {
+        const body = world.createBody({
+          type: "static",
+          position: planck.Vec2(toWorld(obj.x), toWorld(obj.y)),
+        });
+        body.createFixture(planck.Circle(toWorld(FLAG_RADIUS)), {
+          isSensor: true,
+        });
+        bodiesRef.current.set(obj.id, body);
+      } else if (obj.type === "line" && obj.points?.length >= 4) {
+        const body = world.createBody({ type: "static" });
+        const points = [];
+        for (let i = 0; i < obj.points.length; i += 2) {
+          points.push(
+            planck.Vec2(toWorld(obj.x + obj.points[i]), toWorld(obj.y + obj.points[i + 1]))
+          );
+        }
+        for (let i = 0; i < points.length - 1; i += 1) {
+          body.createFixture(planck.Edge(points[i], points[i + 1]), {
+            friction: 0.05,
           });
         }
+        bodiesRef.current.set(obj.id, body);
       }
     });
-
-    world.on("begin-contact", (contact) => {
-      const a = contact.getFixtureA().getBody();
-      const b = contact.getFixtureB().getBody();
-      if (a === playerBody.current || b === playerBody.current) {
-        playerOnGround.current = true;
-      }
-    });
-
-    world.on("end-contact", (contact) => {
-      const a = contact.getFixtureA().getBody();
-      const b = contact.getFixtureB().getBody();
-      if (a === playerBody.current || b === playerBody.current) {
-        playerOnGround.current = false;
-      }
-    });
-
-    worldRef.current = world;
-  }
+  }, [objects, toWorld]);
 
   useEffect(() => {
-    if (physicsEnabled) buildWorld();
-  }, [objects, physicsEnabled]);
+    if (!physicsEnabled || !worldRef.current || !playerBody.current) return undefined;
 
-  useEffect(() => {
-    if (!physicsEnabled) return;
-    let frameId;
+    let frameId = null;
+    const world = worldRef.current;
 
-    function update() {
-      worldRef.current.step(1 / 60);
+    const handleKeyDown = (event) => {
+      if (event.key === "ArrowLeft") keys.current.left = true;
+      if (event.key === "ArrowRight") keys.current.right = true;
+      if (event.key === " ") {
+        keys.current.jump = true;
+        event.preventDefault();
+      }
+    };
 
-      if (playerBody.current) {
-        const velocity = playerBody.current.getLinearVelocity();
-        const targetSpeed = keys.current.left ? -MAX_SPEED : keys.current.right ? MAX_SPEED : 0;
-        const controlForce = playerOnGround.current ? WALK_FORCE : AIR_CONTROL_FORCE;
-        const speedDelta = targetSpeed - velocity.x;
+    const handleKeyUp = (event) => {
+      if (event.key === "ArrowLeft") keys.current.left = false;
+      if (event.key === "ArrowRight") keys.current.right = false;
+      if (event.key === " ") keys.current.jump = false;
+    };
 
-        playerBody.current.applyForceToCenter(planck.Vec2(speedDelta * controlForce, 0), true);
-        playerBody.current.setLinearDamping(playerOnGround.current ? GROUND_DAMPING : AIR_DAMPING);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
 
-        if (keys.current.jump && playerOnGround.current) {
-          if (velocity.y > -MAX_VERTICAL_SPEED) {
-            playerBody.current.applyLinearImpulse(
-              planck.Vec2(0, -JUMP_IMPULSE),
-              playerBody.current.getWorldCenter()
-            );
-          }
-          keys.current.jump = false;
-        }
+    const update = () => {
+      frameId = requestAnimationFrame(update);
 
-        if (velocity.y < -MAX_VERTICAL_SPEED) {
-          playerBody.current.setLinearVelocity(planck.Vec2(velocity.x, -MAX_VERTICAL_SPEED));
-        }
+      if (!playerBody.current) return;
+
+      const vel = playerBody.current.getLinearVelocity();
+
+      if (keys.current.left) {
+        playerBody.current.applyForceToCenter(
+          planck.Vec2(-WALK_FORCE * (isGrounded.current ? 1 : AIR_CONTROL_FORCE), 0),
+          true
+        );
+      }
+      if (keys.current.right) {
+        playerBody.current.applyForceToCenter(
+          planck.Vec2(WALK_FORCE * (isGrounded.current ? 1 : AIR_CONTROL_FORCE), 0),
+          true
+        );
       }
 
-      const playerPos = playerBody.current?.getPosition();
-      if (playerPos) {
-        setCamera((prev) => ({
-          ...prev,
-          x: stageSize.width / 2 - toPixels(playerPos.x) * prev.zoom,
-          y: stageSize.height / 2 - toPixels(playerPos.y) * prev.zoom,
-        }));
+      if (isGrounded.current && Math.abs(lastContactNormal.current.x) > 0.15) {
+        const surfDir = Math.sign(-lastContactNormal.current.x);
+        playerBody.current.applyForceToCenter(planck.Vec2(surfDir * SURF_BOOST, 0), true);
+      }
 
-        const flag = objects.find((o) => o.type === "flag");
-        if (flag) {
-          const dist = Math.hypot(playerPos.x - toWorld(flag.x), playerPos.y - toWorld(flag.y));
-          if (dist < toWorld(FLAG_RADIUS) && !hasWon) {
+      if (Math.abs(vel.x) > MAX_SPEED) {
+        playerBody.current.setLinearVelocity(
+          planck.Vec2(Math.sign(vel.x) * MAX_SPEED, vel.y)
+        );
+      }
+
+      if (vel.y < -MAX_UP_SPEED) {
+        playerBody.current.setLinearVelocity(planck.Vec2(vel.x, -MAX_UP_SPEED));
+      } else if (vel.y > MAX_DOWN_SPEED) {
+        playerBody.current.setLinearVelocity(planck.Vec2(vel.x, MAX_DOWN_SPEED));
+      }
+
+      if (keys.current.jump && isGrounded.current) {
+        playerBody.current.applyLinearImpulse(
+          planck.Vec2(0, -JUMP_IMPULSE),
+          playerBody.current.getWorldCenter(),
+          true
+        );
+        isGrounded.current = false;
+        keys.current.jump = false;
+      }
+
+      world.step(1 / 60);
+
+      const touching = contactCount.current > 0;
+      if (!touching) {
+        noContactTimer.current += 1 / 60;
+        if (noContactTimer.current >= 10) {
+          noContactTimer.current = 0;
+          if (onRunReset) onRunReset();
+        }
+      } else {
+        noContactTimer.current = 0;
+      }
+
+      const playerPos = playerBody.current.getPosition();
+      setCamera((prev) => ({
+        ...prev,
+        x: stageSize.width / 2 - toPixels(playerPos.x) * prev.zoom,
+        y: stageSize.height / 2 - toPixels(playerPos.y) * prev.zoom,
+      }));
+
+      if (!hasWon) {
+        const flagBody = bodiesRef.current.get("flag");
+        if (flagBody) {
+          const flagPos = flagBody.getPosition();
+          const dist = Math.hypot(
+            playerPos.x - flagPos.x,
+            playerPos.y - flagPos.y
+          );
+          if (dist < toWorld(FLAG_RADIUS + 15)) {
             setHasWon(true);
           }
         }
       }
 
-      forceRender((n) => n + 1);
-      frameId = requestAnimationFrame(update);
-    }
+      forceRender((prev) => prev + 1);
+    };
 
     update();
-    return () => cancelAnimationFrame(frameId);
-  }, [physicsEnabled, objects, hasWon, stageSize, setCamera, forceRender]);
 
-  useEffect(() => {
-    function down(e) {
-      if (!physicsEnabled) return;
-      if (e.code === "ArrowLeft" || e.code === "KeyA") keys.current.left = true;
-      if (e.code === "ArrowRight" || e.code === "KeyD") keys.current.right = true;
-      if (e.code === "Space" && !e.repeat) {
-        keys.current.jump = true;
-      }
-    }
-
-    function up(e) {
-      if (e.code === "ArrowLeft" || e.code === "KeyA") keys.current.left = false;
-      if (e.code === "ArrowRight" || e.code === "KeyD") keys.current.right = false;
-    }
-
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
     return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
+      if (frameId) cancelAnimationFrame(frameId);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [physicsEnabled]);
+  }, [
+    physicsEnabled,
+    stageSize,
+    setCamera,
+    setHasWon,
+    hasWon,
+    forceRender,
+    toPixels,
+    toWorld,
+    onRunReset,
+  ]);
 
-  return { buildWorld, worldRef, playerBody };
+  return {
+    buildWorld,
+    worldRef,
+    playerBody,
+  };
 }

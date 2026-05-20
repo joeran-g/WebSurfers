@@ -1,6 +1,9 @@
 import "../styles/Header.css";
+import useApi from "../hooks/useApi";
 
-export default function Header({ onMenuClick, onThemeToggle, theme, username }) {
+export default function Header({ onMenuClick, onThemeToggle, theme }) {
+  const { username } = useApi();
+
   return (
     <header className="header">
       <h1 className="header__title">WebSurfers</h1>

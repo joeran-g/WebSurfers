@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
+import { useTheme } from "./context/ThemeContext";
 import Header from "./components/Header";
 import Game from "./components/Game/Game";
 import Menu from "./components/Menu";
@@ -6,25 +7,22 @@ import "./styles/App.css";
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState("dark");
+  const { theme, toggleTheme } = useTheme();
+  const gameRef = useRef(null);
 
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
-  };
+  const toggleMenu = () => setMenuOpen((prev) => !prev);
 
   return (
     <div className="app">
-      <Header
-        onMenuClick={() => setMenuOpen(true)}
-        onThemeToggle={toggleTheme}
-        theme={theme}
-      />
-      <Game />
-      {menuOpen && <Menu onClose={() => setMenuOpen(false)} />}
+      <Header onMenuClick={toggleMenu} onThemeToggle={toggleTheme} theme={theme} />
+      <Game ref={gameRef} />
+      {menuOpen && (
+        <Menu
+          onClose={() => setMenuOpen(false)}
+          onLoadWorld={(data) => gameRef.current?.loadWorld(data)}
+          getGameObjects={() => gameRef.current?.getCurrentObjects?.() || []}
+        />
+      )}
     </div>
   );
 }
