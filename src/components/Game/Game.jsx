@@ -1,3 +1,4 @@
+import confetti from "canvas-confetti";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { Stage, Layer, Rect, Group } from "react-konva";
 
@@ -21,10 +22,10 @@ const DEFAULT_CAMERA = { x: 0, y: 0, zoom: 1 };
 
 function Game(props, ref) {
   const [physicsEnabled, setPhysicsEnabled] = useState(false);
-  const [hasWon, setHasWon] = useState(false);
   const [toolMode, setToolMode] = useState(null);
   const [objectMenuPos, setObjectMenuPos] = useState(null);
   const [, forceRender] = useState(0);
+  const [gameResult, setGameResult] = useState(null); // null | "win" | "lose"
 
   const containerRef = useRef();
   const runStartState = useRef(null);
@@ -42,7 +43,10 @@ function Game(props, ref) {
     isPanning,
     resetCamera,
   } = useCamera(DEFAULT_CAMERA);
-  const drawing = useDrawing(screenToWorld, toolMode === "draw");
+  const drawing = useDrawing(
+    screenToWorld,
+    toolMode === "draw" || toolMode === "draw-obstacle"
+  );
   const {
     objects,
     setObjects,
@@ -62,11 +66,12 @@ function Game(props, ref) {
     physicsEnabled,
     stageSize,
     setCamera,
-    setHasWon,
-    hasWon,
-    forceRender
+    forceRender,
+    setGameResult,
+    gameResult
   );
   const { getWorlds } = useApi();
+  const { theme } = useTheme();
 
   useEffect(() => {
     const loadPublicWorlds = async () => {
@@ -80,6 +85,28 @@ function Game(props, ref) {
     };
     loadPublicWorlds();
   }, [getWorlds, setObjects]);
+
+    useEffect(() => {
+    if (gameResult !== "win") return undefined;
+
+    const burst = () => {
+      confetti({
+        particleCount: 90,
+        spread: 90,
+        startVelocity: 40,
+        origin: { x: 0.5 , y: 0.5 },
+      });
+    };
+
+    burst();
+    const interval = setInterval(burst, 300);
+    const timeout = setTimeout(() => clearInterval(interval), 1200);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [gameResult]);
 
   useEffect(() => {
     const resize = () => {
@@ -116,26 +143,24 @@ function Game(props, ref) {
 
   const resetRun = useCallback(() => {
     setPhysicsEnabled(false);
-    setHasWon(false);
+    setGameResult(null);
     if (runStartState.current) {
       setObjects(JSON.parse(JSON.stringify(runStartState.current)));
     }
     resetCamera(DEFAULT_CAMERA);
   }, [setObjects, resetCamera]);
 
-  
-
   useEffect(() => {
-    if (hasWon && physicsEnabled) {
+    if (gameResult === "win" && physicsEnabled) {
       setPhysicsEnabled(false);
     }
-  }, [hasWon, physicsEnabled]);
+  }, [gameResult, physicsEnabled]);
 
   const startGame = () => {
     runStartState.current = JSON.parse(JSON.stringify(objects));
     setSelectedId(null);
     setObjectMenuPos(null);
-    setHasWon(false);
+    setGameResult(null);
     setPhysicsEnabled(true);
     resetCamera(DEFAULT_CAMERA);
     buildWorld();
@@ -148,7 +173,7 @@ function Game(props, ref) {
         resetRun();
       }
 
-      if (e.code === "Space" && !physicsEnabled) {
+      if (e.code === "Space" && !physicsEnabled && !gameResult) {
         e.preventDefault();
         startGame();
       }
@@ -156,11 +181,36 @@ function Game(props, ref) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [physicsEnabled, resetRun, startGame]);
+  }, [physicsEnabled, resetRun, startGame, gameResult]);
+
+  useEffect(() => {
+    if (!gameResult) return;
+
+    const handleContinue = () => {
+      setPhysicsEnabled(false);
+      setGameResult(null);
+      if (runStartState.current) {
+        setObjects(JSON.parse(JSON.stringify(runStartState.current)));
+      }
+      resetCamera(DEFAULT_CAMERA);
+    };
+
+    const handleAny = (event) => {
+      event.preventDefault();
+      handleContinue();
+    };
+
+    window.addEventListener("keydown", handleAny);
+    window.addEventListener("mousedown", handleAny);
+    return () => {
+      window.removeEventListener("keydown", handleAny);
+      window.removeEventListener("mousedown", handleAny);
+    };
+  }, [gameResult, resetCamera, setObjects]);
 
   const stopGame = () => {
     setPhysicsEnabled(false);
-    setHasWon(false);
+    setGameResult(null);
     setSelectedId(null);
     setObjectMenuPos(null);
     resetCamera(DEFAULT_CAMERA);
@@ -172,12 +222,13 @@ function Game(props, ref) {
 
     const clickedOnStageBackground =
       e.target === stage || e.target.name() === "background";
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
 
-    if (physicsEnabled) {
+    if (physicsEnabled || gameResult) {
       return;
     }
 
-    if (toolMode === "draw") {
+    if (isDrawMode) {
       if (drawing.handleMouseDown(e)) return;
       if (clickedOnStageBackground) setSelectedId(null);
       return;
@@ -203,20 +254,29 @@ function Game(props, ref) {
   };
 
   const handleMouseMove = (e) => {
-    if (toolMode === "draw") {
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+    if (isDrawMode) {
       drawing.handleMouseMove(e);
-    } else if (isPanning) {
+      return;
+    }
+    if (isPanning) {
       movePan(e.evt);
     }
   };
 
   const handleMouseUp = () => {
-    if (toolMode === "draw") {
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+    if (isDrawMode) {
       const finishedLine = drawing.handleMouseUp();
       if (finishedLine) {
+        if (toolMode === "draw-obstacle") {
+          finishedLine.type = "obstacle";
+        }
         setObjects((prev) => [...prev, finishedLine]);
       }
+      return;
     }
+
     if (isPanning) {
       endPan();
     }
@@ -233,7 +293,7 @@ function Game(props, ref) {
     const x = playerPos ? playerPos.x * 30 : renderObj.x ?? 0;
     const y = playerPos ? playerPos.y * 30 : renderObj.y ?? 0;
 
-    let props = {
+    const props = {
       x,
       y,
       draggable: toolMode === "select",
@@ -244,7 +304,7 @@ function Game(props, ref) {
         }
       },
       onDragEnd: (event) => {
-        if (renderObj.type === "line") {
+        if (renderObj.type === "line" || renderObj.type === "obstacle") {
           handleLineDragEnd(renderObj.id, event);
         } else {
           handleObjectDragEnd(renderObj.id, event);
@@ -255,11 +315,18 @@ function Game(props, ref) {
     if (renderObj.type === "player") return <Player key={renderObj.id} {...props} />;
     if (renderObj.type === "flag") return <Flag key={renderObj.id} {...props} />;
     if (renderObj.type === "line")
-      return <LineObj key={renderObj.id} {...props} points={renderObj.points} />;
+      return (
+        <LineObj
+          key={renderObj.id}
+          {...props}
+          points={renderObj.points}
+          stroke={theme === "light" ? "black" : "#ccc"}
+        />
+      );
+    if (renderObj.type === "obstacle")
+      return <LineObj key={renderObj.id} {...props} points={renderObj.points} stroke="red" />;
     return null;
   };
-
-  const { theme } = useTheme();
 
   const getCanvasBg = () => {
     return theme === "light" ? "#e0f2fe" : "#1a1f2e";
@@ -275,7 +342,9 @@ function Game(props, ref) {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onWheel={handleWheel}
-          style={{ cursor: isPanning ? "grabbing" : toolMode === "draw" ? "crosshair" : "default" }}
+          style={{
+            cursor: isPanning ? "grabbing" : toolMode === "draw" || toolMode === "draw-obstacle" ? "crosshair" : "default",
+          }}
         >
           <Layer>
             <Rect
@@ -294,6 +363,7 @@ function Game(props, ref) {
                   x={drawing.lines[0].x}
                   y={drawing.lines[0].y}
                   points={drawing.lines[0].points}
+                  stroke={toolMode === "draw-obstacle" ? "red" : theme === "light" ? "black" : "#ccc"}
                 />
               )}
             </Group>
@@ -301,22 +371,33 @@ function Game(props, ref) {
         </Stage>
 
         <div className="game__controls">
-          <button onClick={startGame} disabled={physicsEnabled}>Start Game</button>
-          <button onClick={stopGame} disabled={!physicsEnabled}>Stop Game</button>
-          <button onClick={resetRun} disabled={!physicsEnabled}>Reset Run</button>
+          <button onClick={startGame} disabled={physicsEnabled || !!gameResult}>
+            Start Game
+          </button>
+          <button onClick={stopGame} disabled={!physicsEnabled}>
+            Stop Game
+          </button>
+          <button onClick={resetRun} disabled={!physicsEnabled && !gameResult}>
+            Reset Run
+          </button>
         </div>
 
         <div className="tool-menu">
           {!toolMode ? (
             <>
               <button onClick={() => setToolMode("draw")}>Draw Line</button>
+              <button onClick={() => setToolMode("draw-obstacle")}>Draw Obstacle</button>
               <button onClick={() => setToolMode("select")}>Move/Delete Object</button>
             </>
           ) : (
             <>
               <button onClick={() => setToolMode(null)}>Back</button>
               <div style={{ color: "#ccc", fontSize: "12px", marginTop: "4px" }}>
-                {toolMode === "draw" ? "Click and drag to draw." : "Click an object to select it."}
+                {toolMode === "draw"
+                  ? "Click and drag to draw a line."
+                  : toolMode === "draw-obstacle"
+                  ? "Click and drag to draw a red obstacle."
+                  : "Click an object to select it."}
               </div>
             </>
           )}
@@ -356,8 +437,45 @@ function Game(props, ref) {
           </div>
         )}
 
-        {physicsEnabled && <div className="game__status">Physics enabled — arrow left/right to move, space to jump</div>}
-        {hasWon && <div className="game__win">You Won!</div>}
+        {physicsEnabled && !gameResult && (
+          <div className="game__status">Physics enabled — arrow left/right to move, space to jump</div>
+        )}
+
+        {gameResult && (
+          <div className="game__end-overlay">
+            <div className="game__end-card">
+              <div className="game__end-title">
+                {gameResult === "win" ? "You Won!" : "You Died!"}
+              </div>
+              <div className="game__end-body">
+                {gameResult === "win" ? (
+                  <>
+                    <div className="game__confetti">🎉 🎉 🎉</div>
+                    <p>Reached the flag — nice run!</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="game__boom"></div>
+                    <p>Better luck next time!</p>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setPhysicsEnabled(false);
+                  setGameResult(null);
+                  if (runStartState.current) {
+                    setObjects(JSON.parse(JSON.stringify(runStartState.current)));
+                  }
+                  resetCamera(DEFAULT_CAMERA);
+                }}
+              >
+                Continue
+              </button>
+              <div className="game__end-hint">Press any key or click to continue</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
