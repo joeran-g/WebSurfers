@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import { useTheme } from "./context/ThemeContext";
 import Header from "./components/Header";
 import Game from "./components/Game/Game";
@@ -10,19 +10,30 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const gameRef = useRef(null);
 
+  const handleLoadWorld = (worldData) => {
+    gameRef.current?.loadWorld?.(worldData);
+  };
+
+  const handleCreateBlankWorld = () => {
+    gameRef.current?.createBlankWorld?.();
+  };
+
+  const getCurrentWorld = () => gameRef.current?.getCurrentObjects?.() || [];
+
   const toggleMenu = () => setMenuOpen((prev) => !prev);
 
   return (
     <div className="app">
       <Header onMenuClick={toggleMenu} onThemeToggle={toggleTheme} theme={theme} />
-      <Game ref={gameRef} />
       {menuOpen && (
         <Menu
           onClose={() => setMenuOpen(false)}
-          onLoadWorld={(data) => gameRef.current?.loadWorld(data)}
-          getGameObjects={() => gameRef.current?.getCurrentObjects?.() || []}
+          onLoadWorld={handleLoadWorld}
+          onCreateBlankWorld={handleCreateBlankWorld}
+          getCurrentWorld={getCurrentWorld}
         />
       )}
+      <Game ref={gameRef} />
     </div>
   );
 }

@@ -48,6 +48,10 @@ export default function useObjects(initialObjects = []) {
     });
   }, [selectedId]);
 
+  const clearPendingPositions = useCallback(() => {
+    setPendingPositions({});
+  }, []);
+
   const deleteSelectedObject = useCallback(() => {
     setObjects((prev) => prev.filter((obj) => obj.id !== selectedId));
     setPendingPositions((prev) => {
@@ -79,5 +83,6 @@ export default function useObjects(initialObjects = []) {
     canDeleteSelectedObject,
     saveSelectedObjectPosition,
     clearPendingPosition,
+    clearPendingPositions,
   };
 }

@@ -1,5 +1,5 @@
 import confetti from "canvas-confetti";
-import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Stage, Layer, Rect, Group } from "react-konva";
 
 import Player from "./objects/Player";
@@ -59,6 +59,7 @@ function Game(props, ref) {
     canDeleteSelectedObject,
     saveSelectedObjectPosition,
     clearPendingPosition,
+    clearPendingPositions,
   } = useObjects(DEFAULT_WORLD);
 
   const { buildWorld, playerBody } = usePhysics(
@@ -144,11 +145,14 @@ function Game(props, ref) {
   const resetRun = useCallback(() => {
     setPhysicsEnabled(false);
     setGameResult(null);
+    setSelectedId(null);
+    setObjectMenuPos(null);
     if (runStartState.current) {
       setObjects(JSON.parse(JSON.stringify(runStartState.current)));
     }
+    clearPendingPositions();
     resetCamera(DEFAULT_CAMERA);
-  }, [setObjects, resetCamera]);
+  }, [setObjects, resetCamera, clearPendingPositions]);
 
   useEffect(() => {
     if (gameResult === "win" && physicsEnabled) {
