@@ -98,7 +98,7 @@ export default function Menu({
     try {
       const worldData = world.world_data || (await loadWorld(world.id))?.world_data;
       if (!worldData) throw new Error("Invalid world data");
-      onLoadWorld(worldData);
+      onLoadWorld(worldData, world.name || "Untitled World");
       handleClose();
     } catch (err) {
       console.error(err);

@@ -25,7 +25,8 @@ function Game(props, ref) {
   const [toolMode, setToolMode] = useState(null);
   const [objectMenuPos, setObjectMenuPos] = useState(null);
   const [, forceRender] = useState(0);
-  const [gameResult, setGameResult] = useState(null); // null | "win" | "lose"
+  const [gameResult, setGameResult] = useState(null);
+  const [worldName, setWorldName] = useState("Untitled World");
 
   const containerRef = useRef();
   const runStartState = useRef(null);
@@ -82,12 +83,41 @@ function Game(props, ref) {
       const selected = weekly || worlds[0];
       if (selected?.world_data) {
         setObjects(selected.world_data);
+        setWorldName(selected.name || "Untitled World");
+        runStartState.current = JSON.parse(JSON.stringify(selected.world_data));
       }
     };
     loadPublicWorlds();
   }, [getWorlds, setObjects]);
 
-    useEffect(() => {
+  useImperativeHandle(
+    ref,
+    () => ({
+      getCurrentObjects: () => objects,
+      loadWorld: (worldData, name = "Untitled World") => {
+        if (!worldData) return;
+        setObjects(worldData);
+        setWorldName(name);
+        clearPendingPositions();
+        setSelectedId(null);
+        setObjectMenuPos(null);
+        runStartState.current = JSON.parse(JSON.stringify(worldData));
+        resetCamera(DEFAULT_CAMERA);
+      },
+      createBlankWorld: () => {
+        setObjects(DEFAULT_WORLD);
+        setWorldName("Untitled World");
+        clearPendingPositions();
+        setSelectedId(null);
+        setObjectMenuPos(null);
+        runStartState.current = JSON.parse(JSON.stringify(DEFAULT_WORLD));
+        resetCamera(DEFAULT_CAMERA);
+      },
+    }),
+    [objects, setObjects, resetCamera, clearPendingPositions, setSelectedId]
+  );
+
+  useEffect(() => {
     if (gameResult !== "win") return undefined;
 
     const burst = () => {
@@ -338,6 +368,9 @@ function Game(props, ref) {
 
   return (
     <div className="game">
+      <div className="game__header">
+        <h1 className="game__world-name">{worldName}</h1>
+      </div>
       <div ref={containerRef} className="game__canvas-wrapper">
         <Stage
           width={stageSize.width}

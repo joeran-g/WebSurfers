@@ -225,3 +225,27 @@ body,
   color: #9ca3af;
   font-size: 0.92rem;
 }
+
+.game__header {
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.game__world-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+[data-theme="light"] .game__header {
+  background: #f1f5f9;
+}
+
+[data-theme="dark"] .game__header {
+  background: #0f172a;
+}
