@@ -10,6 +10,7 @@ import useDrawing from "../../hooks/useDrawing";
 import usePhysics from "../../hooks/usePhysics";
 import useObjects from "../../hooks/useObjects";
 import useApi from "../../hooks/useApi";
+import useWorldPersistence from "../../hooks/useWorldPersistence";
 import "../../styles/Game.css";
 import { useTheme } from "../../context/ThemeContext";
 
@@ -75,6 +76,13 @@ function Game(props, ref) {
   const { getWorlds } = useApi();
   const { theme } = useTheme();
 
+  const [worldId, setWorldId] = useState(null);
+  const [isWeeklyWorld, setIsWeeklyWorld] = useState(false);
+
+  const { autoSaveWorld } = useApi();
+
+  useWorldPersistence(objects, worldId, isWeeklyWorld, autoSaveWorld);
+
   useEffect(() => {
     const loadPublicWorlds = async () => {
       const worlds = await getWorlds();
@@ -90,14 +98,17 @@ function Game(props, ref) {
     loadPublicWorlds();
   }, [getWorlds, setObjects]);
 
+
   useImperativeHandle(
     ref,
     () => ({
       getCurrentObjects: () => objects,
-      loadWorld: (worldData, name = "Untitled World") => {
+      loadWorld: (worldData, name = "Untitled World", id = null, isWeekly = false) => {
         if (!worldData) return;
         setObjects(worldData);
         setWorldName(name);
+        setWorldId(id);
+        setIsWeeklyWorld(isWeekly);
         clearPendingPositions();
         setSelectedId(null);
         setObjectMenuPos(null);
@@ -107,6 +118,8 @@ function Game(props, ref) {
       createBlankWorld: () => {
         setObjects(DEFAULT_WORLD);
         setWorldName("Untitled World");
+        setWorldId(null);
+        setIsWeeklyWorld(false);
         clearPendingPositions();
         setSelectedId(null);
         setObjectMenuPos(null);
@@ -368,10 +381,11 @@ function Game(props, ref) {
 
   return (
     <div className="game">
-      <div className="game__header">
+      
+      <div ref={containerRef} className="game__canvas-wrapper">
+        <div className="game__header">
         <h1 className="game__world-name">{worldName}</h1>
       </div>
-      <div ref={containerRef} className="game__canvas-wrapper">
         <Stage
           width={stageSize.width}
           height={stageSize.height}

@@ -3,9 +3,11 @@ import { useCallback, useEffect, useState } from "react";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5173";
 
 export default function useApi() {
-  const [token, setToken] = useState(() => localStorage.getItem("token"));
-  const [username, setUsername] = useState(() => localStorage.getItem("username"));
-  const [isGuest, setIsGuest] = useState(() => !localStorage.getItem("token"));
+  const [isGuest, setIsGuest] = useState(true);
+  const [username, setUsername] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem("token") || null);
+  const [currentWeeklyWorldId, setCurrentWeeklyWorldId] = useState(null);
+
 
   useEffect(() => {
     if (token) {
@@ -167,6 +169,47 @@ export default function useApi() {
     [loadWorld]
   );
 
+  const autoSaveWorld = useCallback(
+    async (worldId, worldData) => {
+      if (!worldId || !worldData) return false;
+      try {
+        const response = await fetch(`${API_BASE}/worlds/${worldId}/auto-save`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: JSON.stringify({ world_data: worldData }),
+        });
+        return response.ok;
+      } catch (err) {
+        console.error("Auto-save failed:", err);
+        return false;
+      }
+    },
+    [token]
+  );
+
+  const createWeeklyWorld = useCallback(async () => {
+    if (!token) return null;
+    try {
+      const response = await fetch(`${API_BASE}/worlds/weekly/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error("Failed to create weekly world");
+      const world = await response.json();
+      setCurrentWeeklyWorldId(world.id);
+      return world;
+    } catch (err) {
+      console.error("Create weekly world failed:", err);
+      return null;
+    }
+  }, [token]);
+
   return {
     isGuest,
     username,
@@ -176,9 +219,12 @@ export default function useApi() {
     getWorlds,
     getUserWorlds,
     saveWorld,
-    updateWorld,
-    deleteWorld,
     loadWorld,
     downloadWorld,
+    apiCall,
+    autoSaveWorld,
+    createWeeklyWorld,
+    currentWeeklyWorldId,
+    setCurrentWeeklyWorldId,
   };
 }
