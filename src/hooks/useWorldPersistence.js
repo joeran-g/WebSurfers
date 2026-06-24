@@ -5,72 +5,30 @@ const DEFAULT_WORLD = [
   { id: "flag", type: "flag", x: 750, y: 650 },
 ];
 
-export default function useWorldPersistence(
-    objects,
-    worldId,
-    isWeeklyWorld,
-    autoSaveWorld) {
-
+export default function useWorldPersistence(objects, worldId, isWeeklyWorld, autoSaveWorld) {
   const debounceTimer = useRef(null);
   const lastSavedData = useRef(null);
-  
+
   const saveWorldData = useCallback(async () => {
     if (!worldId || !isWeeklyWorld) return;
-
     const worldData = JSON.stringify(objects);
     if (worldData === lastSavedData.current) return; // no changes
-
     lastSavedData.current = worldData;
     await autoSaveWorld(worldId, objects);
   }, [worldId, isWeeklyWorld, objects, autoSaveWorld]);
 
   useEffect(() => {
     if (!isWeeklyWorld) return;
-
-    // Debounce saves to avoid spamming the backend
-    if (debounceTimer.current) {
-      clearTimeout(debounceTimer.current);
-    }
-
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       saveWorldData();
-    }, 1500); // save 1.5s after last change
-
+    }, 1500);
     return () => {
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
   }, [objects, isWeeklyWorld, saveWorldData]);
 
-  function saveWorld(name, objects) {
-    if (!username) return;
-    const worlds = JSON.parse(localStorage.getItem(`worlds_${username}`)) || {};
-    worlds[name] = objects;
-    localStorage.setItem(`worlds_${username}`, JSON.stringify(worlds));
-  }
-
-  function loadWorld(name) {
-    if (!username) return DEFAULT_WORLD;
-    const worlds = JSON.parse(localStorage.getItem(`worlds_${username}`)) || {};
-    return worlds[name] || DEFAULT_WORLD;
-  }
-
-  function getPersonalWorlds() {
-    if (!username) return [];
-    const worlds = JSON.parse(localStorage.getItem(`worlds_${username}`)) || {};
-    return Object.keys(worlds);
-  }
-
-  function setWeeklyWorld(objects) {
-    localStorage.setItem("weeklyWorld", JSON.stringify(objects));
-  }
-
   return {
-    saveWorld,
-    loadWorld,
-    getPersonalWorlds,
-    setWeeklyWorld,
-    saveWorldData
+    saveWorldData,
   };
 }

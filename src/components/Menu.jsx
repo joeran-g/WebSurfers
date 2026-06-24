@@ -19,6 +19,7 @@ export default function Menu({
   const [saveName, setSaveName] = useState("");
   const [saveResult, setSaveResult] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [autoSaveStatus, setAutoSaveStatus] = useState("idle"); // idle | saved | failed
 
   const {
     isGuest,
@@ -52,6 +53,21 @@ export default function Menu({
       setUserWorlds([]);
     }
   }, [isGuest, getUserWorlds]);
+
+  useEffect(() => {
+    const handleAutosave = (e) => {
+      const ok = e?.detail?.ok;
+      if (ok) {
+        setAutoSaveStatus("saved");
+        setTimeout(() => setAutoSaveStatus("idle"), 1800);
+      } else {
+        setAutoSaveStatus("failed");
+        setTimeout(() => setAutoSaveStatus("idle"), 2500);
+      }
+    };
+    window.addEventListener("autosave", handleAutosave);
+    return () => window.removeEventListener("autosave", handleAutosave);
+  }, []);
 
   const handleClose = () => {
     setIsOpen(false);
@@ -98,7 +114,7 @@ export default function Menu({
     try {
       const worldData = world.world_data || (await loadWorld(world.id))?.world_data;
       if (!worldData) throw new Error("Invalid world data");
-      onLoadWorld(worldData, world.name || "Untitled World");
+      onLoadWorld(worldData, world.name || "Untitled World", world.id, Boolean(world.is_weekly_world));
       handleClose();
     } catch (err) {
       console.error(err);
@@ -222,6 +238,7 @@ export default function Menu({
             publicWorlds.map((world) => (
               <div key={world.id} style={{ marginBottom: 10 }}>
                 <strong>{world.name || "Untitled"}</strong>
+                {world.is_weekly_world && <span style={{ marginLeft: 8, fontSize: 12, color: "#60a5fa" }}>Weekly</span>}
                 <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
                   <button className="menu__button" onClick={() => handleLoadWorld(world)}>
                     Load
@@ -260,6 +277,13 @@ export default function Menu({
             )}
           </div>
         )}
+        {/* autosave indicator */}
+        <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.04)", marginTop: 8 }}>
+          <div style={{ fontSize: 13, color: "#9ca3af" }}>Autosave</div>
+          {autoSaveStatus === "idle" && <div style={{ fontSize: 13, color: "#94a3b8" }}>Waiting...</div>}
+          {autoSaveStatus === "saved" && <div style={{ fontSize: 13, color: "#10b981" }}>Saved ✓</div>}
+          {autoSaveStatus === "failed" && <div style={{ fontSize: 13, color: "#f87171" }}>Save failed</div>}
+        </div>
       </div>
     </>
   );

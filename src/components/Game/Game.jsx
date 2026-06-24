@@ -21,13 +21,16 @@ const DEFAULT_WORLD = [
 
 const DEFAULT_CAMERA = { x: 0, y: 0, zoom: 1 };
 
-function Game(props, ref) {
+function Game({ onWorldChange }, ref) {
   const [physicsEnabled, setPhysicsEnabled] = useState(false);
   const [toolMode, setToolMode] = useState(null);
+  const [toolMenuOpen, setToolMenuOpen] = useState(false);
   const [objectMenuPos, setObjectMenuPos] = useState(null);
   const [, forceRender] = useState(0);
   const [gameResult, setGameResult] = useState(null);
   const [worldName, setWorldName] = useState("Untitled World");
+  const [worldId, setWorldId] = useState(null);
+  const [isWeeklyWorld, setIsWeeklyWorld] = useState(false);
 
   const containerRef = useRef();
   const runStartState = useRef(null);
@@ -76,12 +79,15 @@ function Game(props, ref) {
   const { getWorlds } = useApi();
   const { theme } = useTheme();
 
-  const [worldId, setWorldId] = useState(null);
-  const [isWeeklyWorld, setIsWeeklyWorld] = useState(false);
-
-  const { autoSaveWorld } = useApi();
-
-  useWorldPersistence(objects, worldId, isWeeklyWorld, autoSaveWorld);
+  const updateWorldInfo = useCallback(
+    (name, weekly) => {
+      const resolvedName = name || "Untitled World";
+      setWorldName(resolvedName);
+      setIsWeeklyWorld(Boolean(weekly));
+      onWorldChange?.({ name: resolvedName, isWeekly: Boolean(weekly) });
+    },
+    [onWorldChange]
+  );
 
   useEffect(() => {
     const loadPublicWorlds = async () => {
@@ -91,13 +97,13 @@ function Game(props, ref) {
       const selected = weekly || worlds[0];
       if (selected?.world_data) {
         setObjects(selected.world_data);
-        setWorldName(selected.name || "Untitled World");
+        updateWorldInfo(selected.name || "Untitled World", selected.is_weekly_world);
+        setWorldId(selected.id || null);
         runStartState.current = JSON.parse(JSON.stringify(selected.world_data));
       }
     };
     loadPublicWorlds();
-  }, [getWorlds, setObjects]);
-
+  }, [getWorlds, setObjects, updateWorldInfo]);
 
   useImperativeHandle(
     ref,
@@ -106,9 +112,9 @@ function Game(props, ref) {
       loadWorld: (worldData, name = "Untitled World", id = null, isWeekly = false) => {
         if (!worldData) return;
         setObjects(worldData);
-        setWorldName(name);
+        updateWorldInfo(name, isWeekly);
         setWorldId(id);
-        setIsWeeklyWorld(isWeekly);
+        setIsWeeklyWorld(Boolean(isWeekly));
         clearPendingPositions();
         setSelectedId(null);
         setObjectMenuPos(null);
@@ -117,7 +123,7 @@ function Game(props, ref) {
       },
       createBlankWorld: () => {
         setObjects(DEFAULT_WORLD);
-        setWorldName("Untitled World");
+        updateWorldInfo("Untitled World", false);
         setWorldId(null);
         setIsWeeklyWorld(false);
         clearPendingPositions();
@@ -127,7 +133,7 @@ function Game(props, ref) {
         resetCamera(DEFAULT_CAMERA);
       },
     }),
-    [objects, setObjects, resetCamera, clearPendingPositions, setSelectedId]
+    [objects, setObjects, updateWorldInfo, resetCamera, clearPendingPositions]
   );
 
   useEffect(() => {
@@ -383,9 +389,6 @@ function Game(props, ref) {
     <div className="game">
       
       <div ref={containerRef} className="game__canvas-wrapper">
-        <div className="game__header">
-        <h1 className="game__world-name">{worldName}</h1>
-      </div>
         <Stage
           width={stageSize.width}
           height={stageSize.height}
@@ -422,36 +425,47 @@ function Game(props, ref) {
         </Stage>
 
         <div className="game__controls">
-          <button onClick={startGame} disabled={physicsEnabled || !!gameResult}>
-            Start Game
+          <button
+            className="game__tools-toggle"
+            onClick={() => setToolMenuOpen((prev) => !prev)}
+          >
+            Tools
           </button>
-          <button onClick={stopGame} disabled={!physicsEnabled}>
-            Stop Game
-          </button>
-          <button onClick={resetRun} disabled={!physicsEnabled && !gameResult}>
-            Reset Run
-          </button>
+          <div className="game__action-row">
+            <button onClick={startGame} disabled={physicsEnabled || !!gameResult}>
+              Start 'Space'
+            </button>
+            <button onClick={resetRun} disabled={!physicsEnabled && !gameResult}>
+              Reset 'R'
+            </button>
+          </div>
         </div>
 
-        <div className="tool-menu">
-          {!toolMode ? (
-            <>
-              <button onClick={() => setToolMode("draw")}>Draw Line</button>
-              <button onClick={() => setToolMode("draw-obstacle")}>Draw Obstacle</button>
-              <button onClick={() => setToolMode("select")}>Move/Delete Object</button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => setToolMode(null)}>Back</button>
-              <div style={{ color: "#ccc", fontSize: "12px", marginTop: "4px" }}>
-                {toolMode === "draw"
-                  ? "Click and drag to draw a line."
-                  : toolMode === "draw-obstacle"
-                  ? "Click and drag to draw a red obstacle."
-                  : "Click an object to select it."}
-              </div>
-            </>
-          )}
+        <div className={`tool-menu ${toolMenuOpen ? "tool-menu--open" : ""}`}>
+          <button
+            onClick={() => {
+              setToolMode("draw");
+            }}
+          >
+            Draw Line
+          </button>
+          <button
+            onClick={() => {
+              setToolMode("draw-obstacle");
+            }}
+          >
+            Draw Obstacle
+          </button>
+          <button
+            onClick={() => {
+              setToolMode("select");
+            }}
+          >
+            Move/Delete Object
+          </button>
+          <button className="tool-menu__close" onClick={() => {setToolMenuOpen(false); setToolMode(false)}}>
+            Close
+          </button>
         </div>
 
         {toolMode === "select" && selectedId && objectMenuPos && (

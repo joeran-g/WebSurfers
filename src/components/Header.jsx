@@ -1,21 +1,29 @@
 import "../styles/Header.css";
-import useApi from "../hooks/useApi";
 
-export default function Header({ onMenuClick, onThemeToggle, theme }) {
-  const { username } = useApi();
-
+export default function Header({
+  onMenuClick,
+  onThemeToggle,
+  theme,
+  worldName = "Untitled World",
+  isWeeklyWorld = false,
+}) {
   return (
     <header className="header">
-      <h1 className="header__title">WebSurfers</h1>
-      <div className="header__actions">
-        {username && <span className="header__user">Welcome, {username}!</span>}
-        <button className="header__theme" onClick={onThemeToggle}>
-          {theme === "dark" ? "☀" : "🌙"}
+      <div className="header__brand">
+        <button className="header__theme-button" onClick={onThemeToggle}>
+          {theme === "dark" ? "☀️" : "🌙"}
         </button>
-        <button className="header__button" onClick={onMenuClick}>
-          ☰
-        </button>
+        <div className="header__title-group">
+          <div className="header__title">WebSurfers</div>
+          <div className="header__world-row">
+            <span className="header__world-name">{worldName}</span>
+            {isWeeklyWorld && <span className="header__badge">Weekly</span>}
+          </div>
+        </div>
       </div>
+      <button className="header__menu-button" onClick={onMenuClick}>
+          ☰
+      </button>
     </header>
   );
 }

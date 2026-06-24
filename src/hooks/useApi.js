@@ -181,9 +181,17 @@ export default function useApi() {
           },
           body: JSON.stringify({ world_data: worldData }),
         });
-        return response.ok;
+        const ok = response.ok;
+        // emit autosave event for UI
+        try {
+          window.dispatchEvent(new CustomEvent("autosave", { detail: { ok } }));
+        } catch (e) {}
+        return ok;
       } catch (err) {
         console.error("Auto-save failed:", err);
+        try {
+          window.dispatchEvent(new CustomEvent("autosave", { detail: { ok: false } }));
+        } catch (e) {}
         return false;
       }
     },
