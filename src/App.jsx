@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTheme } from "./context/ThemeContext";
 import Header from "./components/Header";
 import Game from "./components/Game/Game";
@@ -7,23 +7,30 @@ import "./styles/App.css";
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [worldName, setWorldName] = useState("Untitled World");
-  const [isWeeklyWorld, setIsWeeklyWorld] = useState(false);
+  const [currentWorldMeta, setCurrentWorldMeta] = useState({
+    id: null,
+    name: "Untitled World",
+    isWeekly: false,
+    ownedByMe: false,
+  });
   const { theme, toggleTheme } = useTheme();
   const gameRef = useRef(null);
 
-  const handleWorldChange = ({ name, isWeekly }) => {
-    setWorldName(name || "Untitled World");
-    setIsWeeklyWorld(Boolean(isWeekly));
-  };
+  const handleWorldChange = useCallback(({ id = null, name = "Untitled World", isWeekly = false, ownedByMe = false }) => {
+    setCurrentWorldMeta({
+      id,
+      name,
+      isWeekly,
+      ownedByMe,
+    });
+  }, []);
 
-  const handleLoadWorld = (...args) => {
-    gameRef.current?.loadWorld?.(...args);
+  const handleLoadWorld = (worldData, name, id, isWeekly, ownedByMe = false) => {
+    gameRef.current?.loadWorld?.(worldData, name, id, isWeekly, ownedByMe);
   };
 
   const handleCreateBlankWorld = () => {
     gameRef.current?.createBlankWorld?.();
-    handleWorldChange({ name: "Untitled World", isWeekly: false });
   };
 
   const getCurrentWorld = () => gameRef.current?.getCurrentObjects?.() || [];
@@ -33,11 +40,11 @@ export default function App() {
   return (
     <div className="app">
       <Header
-        onMenuClick={toggleMenu}
+        onMenuClick={() => setMenuOpen((prev) => !prev)}
         onThemeToggle={toggleTheme}
         theme={theme}
-        worldName={worldName}
-        isWeeklyWorld={isWeeklyWorld}
+        worldName={currentWorldMeta.name}
+        isWeeklyWorld={currentWorldMeta.isWeekly}
       />
       {menuOpen && (
         <Menu
@@ -45,6 +52,7 @@ export default function App() {
           onLoadWorld={handleLoadWorld}
           onCreateBlankWorld={handleCreateBlankWorld}
           getCurrentWorld={getCurrentWorld}
+          currentWorldMeta={currentWorldMeta}
         />
       )}
       <Game ref={gameRef} onWorldChange={handleWorldChange} />

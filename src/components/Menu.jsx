@@ -7,9 +7,11 @@ export default function Menu({
   onLoadWorld,
   onCreateBlankWorld,
   getCurrentWorld,
+  currentWorldMeta,
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [authMode, setAuthMode] = useState("login"); // login or register
+  const [authMode, setAuthMode] = useState("login");
+  const [authMessage, setAuthMessage] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [registerUsername, setRegisterUsername] = useState("");
@@ -17,9 +19,10 @@ export default function Menu({
   const [userWorlds, setUserWorlds] = useState([]);
   const [publicWorlds, setPublicWorlds] = useState([]);
   const [saveName, setSaveName] = useState("");
+  const [saveCurrentName, setSaveCurrentName] = useState("");
   const [saveResult, setSaveResult] = useState("");
+  const [saveCurrentResult, setSaveCurrentResult] = useState("");
   const [loadError, setLoadError] = useState("");
-  const [autoSaveStatus, setAutoSaveStatus] = useState("idle"); // idle | saved | failed
 
   const {
     isGuest,
@@ -30,8 +33,9 @@ export default function Menu({
     getWorlds,
     getUserWorlds,
     saveWorld,
+    createWorld,
+    updateWorld,
     loadWorld,
-    downloadWorld,
   } = useApi();
 
   useEffect(() => {
@@ -54,67 +58,90 @@ export default function Menu({
     }
   }, [isGuest, getUserWorlds]);
 
-  useEffect(() => {
-    const handleAutosave = (e) => {
-      const ok = e?.detail?.ok;
-      if (ok) {
-        setAutoSaveStatus("saved");
-        setTimeout(() => setAutoSaveStatus("idle"), 1800);
-      } else {
-        setAutoSaveStatus("failed");
-        setTimeout(() => setAutoSaveStatus("idle"), 2500);
-      }
-    };
-    window.addEventListener("autosave", handleAutosave);
-    return () => window.removeEventListener("autosave", handleAutosave);
-  }, []);
-
   const handleClose = () => {
     setIsOpen(false);
-    setTimeout(onClose, 500);
+    setTimeout(onClose, 400);
   };
 
   const handleLogin = async () => {
-    if (await login(loginUsername, loginPassword)) {
+    setAuthMessage("");
+    const result = await login(loginUsername, loginPassword);
+    if (result?.ok) {
+      setAuthMessage("Logged in successfully.");
       setLoginUsername("");
       setLoginPassword("");
       setAuthMode("login");
+    } else {
+      setAuthMessage(result?.message || "Login failed.");
     }
   };
 
   const handleRegister = async () => {
-    if (await register(registerUsername, registerPassword)) {
+    setAuthMessage("");
+    const result = await register(registerUsername, registerPassword);
+    if (result?.ok) {
+      setAuthMessage("Registered successfully. Please log in.");
       setRegisterUsername("");
       setRegisterPassword("");
       setAuthMode("login");
+    } else {
+      setAuthMessage(result?.message || "Registration failed.");
+    }
+  };
+
+  const handleSaveCurrentWorld = async () => {
+    setSaveCurrentResult("");
+    const name = saveCurrentName.trim() || currentWorldMeta?.name || "Untitled World";
+    const worldData = getCurrentWorld();
+    if (!Array.isArray(worldData) || !worldData.length) {
+      return setSaveCurrentResult("Nothing to save.");
+    }
+
+    try {
+      let savedWorld;
+      if (currentWorldMeta?.id && currentWorldMeta?.ownedByMe) {
+        savedWorld = await updateWorld(currentWorldMeta.id, {
+          name,
+          world_data: worldData,
+        });
+        setSaveCurrentResult("Saved changes to current world.");
+      } else {
+        savedWorld = await createWorld(name, worldData, false);
+        setSaveCurrentResult("Saved a copy to your worlds.");
+        setUserWorlds(await getUserWorlds());
+      }
+
+      onLoadWorld(worldData, savedWorld.name, savedWorld.id, Boolean(savedWorld.is_weekly_world), true);
+      setSaveCurrentName("");
+    } catch (err) {
+      console.error(err);
+      setSaveCurrentResult("Save failed.");
     }
   };
 
   const handleSavePublic = async () => {
-    if (!saveName) return setSaveResult("Enter a world name first.");
-    if (!getCurrentWorld) return setSaveResult("Unable to read current world.");
+    if (!saveName.trim()) return setSaveResult("Enter a world name first.");
     const worldData = getCurrentWorld();
     if (!Array.isArray(worldData) || !worldData.length) {
       return setSaveResult("Current world is empty.");
     }
-
     try {
-      await saveWorld(saveName, worldData, true);
+      await saveWorld(saveName.trim(), worldData, true);
       setSaveResult("Saved public world!");
       setSaveName("");
       setPublicWorlds(await getWorlds());
     } catch (err) {
-      setSaveResult("Save failed.");
       console.error(err);
+      setSaveResult("Save failed.");
     }
   };
 
-  const handleLoadWorld = async (world) => {
+  const handleLoadWorld = async (world, ownedByMe = false) => {
     setLoadError("");
     try {
       const worldData = world.world_data || (await loadWorld(world.id))?.world_data;
       if (!worldData) throw new Error("Invalid world data");
-      onLoadWorld(worldData, world.name || "Untitled World", world.id, Boolean(world.is_weekly_world));
+      onLoadWorld(worldData, world.name || "Untitled World", world.id, Boolean(world.is_weekly_world), ownedByMe);
       handleClose();
     } catch (err) {
       console.error(err);
@@ -127,6 +154,8 @@ export default function Menu({
     handleClose();
   };
 
+  const currentIsOwned = Boolean(currentWorldMeta?.id && currentWorldMeta?.ownedByMe);
+
   return (
     <>
       <div className={`menu__overlay ${!isOpen ? "menu__overlay--closing" : ""}`} onClick={handleClose} />
@@ -136,64 +165,66 @@ export default function Menu({
           <button className="menu_closed" onClick={handleClose}>✕</button>
         </div>
 
-        <div className="menu__section">
-          <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
-            <button
-              className={`menu__button ${authMode === "login" ? "menu__button--primary" : ""}`}
-              onClick={() => setAuthMode("login")}
-            >
-              Login
-            </button>
-            <button
-              className={`menu__button ${authMode === "register" ? "menu__button--primary" : ""}`}
-              onClick={() => setAuthMode("register")}
-            >
-              Register
-            </button>
-          </div>
+        {authMessage && <div className="menu__alert">{authMessage}</div>}
 
-          {authMode === "login" ? (
-            <>
-              <input
-                className="menu__button"
-                value={loginUsername}
-                onChange={(e) => setLoginUsername(e.target.value)}
-                placeholder="Username"
-              />
-              <input
-                className="menu__button"
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Password"
-              />
-              <button className="menu__button menu__button--primary" onClick={handleLogin}>
+        {isGuest ? (
+          <div className="menu__section">
+            <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+              <button
+                className={`menu__button ${authMode === "login" ? "menu__button--primary" : ""}`}
+                onClick={() => setAuthMode("login")}
+              >
                 Login
               </button>
-            </>
-          ) : (
-            <>
-              <input
-                className="menu__button"
-                value={registerUsername}
-                onChange={(e) => setRegisterUsername(e.target.value)}
-                placeholder="Username"
-              />
-              <input
-                className="menu__button"
-                type="password"
-                value={registerPassword}
-                onChange={(e) => setRegisterPassword(e.target.value)}
-                placeholder="Password"
-              />
-              <button className="menu__button menu__button--primary" onClick={handleRegister}>
+              <button
+                className={`menu__button ${authMode === "register" ? "menu__button--primary" : ""}`}
+                onClick={() => setAuthMode("register")}
+              >
                 Register
               </button>
-            </>
-          )}
-        </div>
+            </div>
 
-        {!isGuest && (
+            {authMode === "login" ? (
+              <>
+                <input
+                  className="menu__button"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder="Username"
+                />
+                <input
+                  className="menu__button"
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Password"
+                />
+                <button className="menu__button menu__button--primary" onClick={handleLogin}>
+                  Login
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  className="menu__button"
+                  value={registerUsername}
+                  onChange={(e) => setRegisterUsername(e.target.value)}
+                  placeholder="Username"
+                />
+                <input
+                  className="menu__button"
+                  type="password"
+                  value={registerPassword}
+                  onChange={(e) => setRegisterPassword(e.target.value)}
+                  placeholder="Password"
+                />
+                <button className="menu__button menu__button--primary" onClick={handleRegister}>
+                  Register
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
           <div className="menu__section">
             <p>Logged in as <strong>{username}</strong></p>
             <button className="menu__button menu__button--primary" onClick={logout}>
@@ -203,34 +234,53 @@ export default function Menu({
         )}
 
         <div className="menu__section">
-          <h3>Create</h3>
+          <h3>Create / load worlds</h3>
           <button className="menu__button" onClick={handleCreateBlankWorld}>
             Create blank world
           </button>
         </div>
 
-        {!isGuest && (<div className="menu__section">
-          <h3>Save public world</h3>
-          <input
-            className="menu__button"
-            value={saveName}
-            onChange={(e) => setSaveName(e.target.value)}
-            placeholder="Public world name"
-          />
-          <button
-            className="menu__button menu__button--primary"
-            onClick={handleSavePublic}
-            disabled={isGuest}
-          >
-            Save public world
-          </button>
-          {isGuest && (
-            <p style={{ fontSize: "12px", color: "#f1f5f9" }}>
-              Login to save public worlds.
-            </p>
+        <div className="menu__section">
+          <h3>Save current world</h3>
+          {isGuest ? (
+            <p>Login to save the current world to your account.</p>
+          ) : (
+            <>
+              <input
+                className="menu__button"
+                value={saveCurrentName}
+                onChange={(e) => setSaveCurrentName(e.target.value)}
+                placeholder={currentWorldMeta?.name || "World name"}
+              />
+              <button
+                className="menu__button menu__button--primary"
+                onClick={handleSaveCurrentWorld}
+              >
+                {currentIsOwned ? "Save changes" : "Save a copy to my worlds"}
+              </button>
+              {saveCurrentResult && <p style={{ marginTop: 8, fontSize: "13px" }}>{saveCurrentResult}</p>}
+            </>
           )}
-          {saveResult && <p style={{ marginTop: 8, fontSize: "13px" }}>{saveResult}</p>}
-        </div>)}
+        </div>
+
+        {!isGuest && (
+          <div className="menu__section">
+            <h3>Save public world</h3>
+            <input
+              className="menu__button"
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              placeholder="Public world name"
+            />
+            <button
+              className="menu__button menu__button--primary"
+              onClick={handleSavePublic}
+            >
+              Save public world
+            </button>
+            {saveResult && <p style={{ marginTop: 8, fontSize: "13px" }}>{saveResult}</p>}
+          </div>
+        )}
 
         <div className="menu__section">
           <h3>Official worlds</h3>
@@ -238,16 +288,14 @@ export default function Menu({
             publicWorlds.map((world) => (
               <div key={world.id} style={{ marginBottom: 10 }}>
                 <strong>{world.name || "Untitled"}</strong>
-                {world.is_weekly_world && <span style={{ marginLeft: 8, fontSize: 12, color: "#60a5fa" }}>Weekly</span>}
+                {world.is_weekly_world && (
+                  <span style={{ marginLeft: 8, fontSize: 12, color: "#60a5fa" }}>
+                    Weekly
+                  </span>
+                )}
                 <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
-                  <button className="menu__button" onClick={() => handleLoadWorld(world)}>
+                  <button className="menu__button" onClick={() => handleLoadWorld(world, false)}>
                     Load
-                  </button>
-                  <button
-                    className="menu__button"
-                    onClick={() => downloadWorld(world.id)}
-                  >
-                    Download
                   </button>
                 </div>
               </div>
@@ -266,7 +314,7 @@ export default function Menu({
                 {userWorlds.map((world) => (
                   <li key={world.id} style={{ marginBottom: 10 }}>
                     <strong>{world.name}</strong>
-                    <button className="menu__button" onClick={() => handleLoadWorld(world)}>
+                    <button className="menu__button" onClick={() => handleLoadWorld(world, true)}>
                       Load
                     </button>
                   </li>
@@ -277,13 +325,6 @@ export default function Menu({
             )}
           </div>
         )}
-        {/* autosave indicator */}
-        <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.04)", marginTop: 8 }}>
-          <div style={{ fontSize: 13, color: "#9ca3af" }}>Autosave</div>
-          {autoSaveStatus === "idle" && <div style={{ fontSize: 13, color: "#94a3b8" }}>Waiting...</div>}
-          {autoSaveStatus === "saved" && <div style={{ fontSize: 13, color: "#10b981" }}>Saved ✓</div>}
-          {autoSaveStatus === "failed" && <div style={{ fontSize: 13, color: "#f87171" }}>Save failed</div>}
-        </div>
       </div>
     </>
   );

@@ -28,9 +28,12 @@ function Game({ onWorldChange }, ref) {
   const [objectMenuPos, setObjectMenuPos] = useState(null);
   const [, forceRender] = useState(0);
   const [gameResult, setGameResult] = useState(null);
-  const [worldName, setWorldName] = useState("Untitled World");
   const [worldId, setWorldId] = useState(null);
   const [isWeeklyWorld, setIsWeeklyWorld] = useState(false);
+  const [ownedByMe, setOwnedByMe] = useState(false);
+  const [worldName, setWorldName] = useState("Untitled World");
+  const initialLoadRef = useRef(false);
+  const manualLoadRef = useRef(false);
 
   const containerRef = useRef();
   const runStartState = useRef(null);
@@ -76,45 +79,58 @@ function Game({ onWorldChange }, ref) {
     setGameResult,
     gameResult
   );
-  const { getWorlds } = useApi();
+  const { getWorlds, autoSaveWorld } = useApi();
   const { theme } = useTheme();
+  useWorldPersistence(objects, worldId, isWeeklyWorld, (id, data) => autoSaveWorld(id, data, ownedByMe));
 
   const updateWorldInfo = useCallback(
-    (name, weekly) => {
+    (name, weekly, owned) => {
       const resolvedName = name || "Untitled World";
       setWorldName(resolvedName);
       setIsWeeklyWorld(Boolean(weekly));
-      onWorldChange?.({ name: resolvedName, isWeekly: Boolean(weekly) });
+      setOwnedByMe(Boolean(owned));
+      onWorldChange?.({
+        id: worldId,
+        name: resolvedName,
+        isWeekly: Boolean(weekly),
+        ownedByMe: Boolean(owned),
+      });
     },
-    [onWorldChange]
+    [onWorldChange, worldId]
   );
 
   useEffect(() => {
-    const loadPublicWorlds = async () => {
+    if (initialLoadRef.current || manualLoadRef.current) return;
+    initialLoadRef.current = true;
+
+    const loadInitialWorld = async () => {
       const worlds = await getWorlds();
       if (!worlds?.length) return;
+
       const weekly = worlds.find((world) => world.is_weekly_world);
       const selected = weekly || worlds[0];
-      if (selected?.world_data) {
-        setObjects(selected.world_data);
-        updateWorldInfo(selected.name || "Untitled World", selected.is_weekly_world);
-        setWorldId(selected.id || null);
-        runStartState.current = JSON.parse(JSON.stringify(selected.world_data));
-      }
+      if (!selected?.world_data) return;
+
+      setObjects(selected.world_data);
+      setWorldId(selected.id || null);
+      setOwnedByMe(false);
+      updateWorldInfo(selected.name, selected.is_weekly_world, false);
+      runStartState.current = JSON.parse(JSON.stringify(selected.world_data));
     };
-    loadPublicWorlds();
+
+    loadInitialWorld();
   }, [getWorlds, setObjects, updateWorldInfo]);
 
   useImperativeHandle(
     ref,
     () => ({
       getCurrentObjects: () => objects,
-      loadWorld: (worldData, name = "Untitled World", id = null, isWeekly = false) => {
+      loadWorld: (worldData, name = "Untitled World", id = null, isWeekly = false, owned = false) => {
         if (!worldData) return;
         setObjects(worldData);
-        updateWorldInfo(name, isWeekly);
         setWorldId(id);
-        setIsWeeklyWorld(Boolean(isWeekly));
+        setOwnedByMe(Boolean(owned));
+        updateWorldInfo(name, isWeekly, owned);
         clearPendingPositions();
         setSelectedId(null);
         setObjectMenuPos(null);
@@ -123,9 +139,9 @@ function Game({ onWorldChange }, ref) {
       },
       createBlankWorld: () => {
         setObjects(DEFAULT_WORLD);
-        updateWorldInfo("Untitled World", false);
         setWorldId(null);
-        setIsWeeklyWorld(false);
+        setOwnedByMe(false);
+        updateWorldInfo("Untitled World", false, false);
         clearPendingPositions();
         setSelectedId(null);
         setObjectMenuPos(null);

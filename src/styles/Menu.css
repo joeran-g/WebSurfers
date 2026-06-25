@@ -108,3 +108,30 @@
   background: var(--text-color-secondary);
   margin: 16px 0;
 }
+
+.menu__alert {
+  width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: var(--accent-color);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.menu__alert--error {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #f87171;
+}
+
+.menu__button[type="text"],
+.menu__button[type="password"] {
+  text-align: left;
+}
+
+.menu__button::placeholder {
+  color: var(--text-color-secondary);
+}
