@@ -2,10 +2,13 @@ import { useCallback, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 const TOKEN_STORAGE_KEY = "websurfers_token";
+const USERNAME_KEY = "websurfers_username";
+const USERID_KEY = "websurfers_userid";
 
 export default function useApi() {
   const [token, setToken] = useState(localStorage.getItem(TOKEN_STORAGE_KEY));
-  const [username, setUsername] = useState(null);
+  const [username, setUsername] = useState(localStorage.getItem(USERNAME_KEY) || null);
+  const [userId, setUserId] = useState(localStorage.getItem(USERID_KEY) || null);
 
   const authHeaders = useCallback(
     (json = true) => {
@@ -28,11 +31,26 @@ export default function useApi() {
       if (!response.ok) {
         return { ok: false, message: data.detail || "Invalid credentials" };
       }
-      localStorage.setItem(TOKEN_STORAGE_KEY, data.access_token);
-      setToken(data.access_token);
-      setUsername(usernameInput);
+
+      // store token and returned user info (if any)
+      if (data.access_token) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, data.access_token);
+        setToken(data.access_token);
+      }
+
+      const returnedUser = data.user || { username: usernameInput, id: null };
+      if (returnedUser.username) {
+        localStorage.setItem(USERNAME_KEY, returnedUser.username);
+        setUsername(returnedUser.username);
+      }
+      if (returnedUser.id) {
+        localStorage.setItem(USERID_KEY, returnedUser.id);
+        setUserId(returnedUser.id);
+      }
+
       return { ok: true };
     } catch (err) {
+      console.error(err);
       return { ok: false, message: "Login request failed" };
     }
   }, []);
@@ -48,16 +66,36 @@ export default function useApi() {
       if (!response.ok) {
         return { ok: false, message: data.detail || "Registration failed" };
       }
+
+      // if backend returned token+user, persist and set state (auto-login)
+      if (data.access_token) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, data.access_token);
+        setToken(data.access_token);
+      }
+      const returnedUser = data.user || { username: usernameInput, id: null };
+      if (returnedUser.username) {
+        localStorage.setItem(USERNAME_KEY, returnedUser.username);
+        setUsername(returnedUser.username);
+      }
+      if (returnedUser.id) {
+        localStorage.setItem(USERID_KEY, returnedUser.id);
+        setUserId(returnedUser.id);
+      }
+
       return { ok: true };
     } catch (err) {
+      console.error(err);
       return { ok: false, message: "Registration request failed" };
     }
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(USERNAME_KEY);
+    localStorage.removeItem(USERID_KEY);
     setToken(null);
     setUsername(null);
+    setUserId(null);
   }, []);
 
   const getWorlds = useCallback(async () => {
@@ -131,9 +169,8 @@ export default function useApi() {
           },
           body: JSON.stringify({ world_data: worldData }),
         });
-        const ok = response.ok;
-        window.dispatchEvent(new CustomEvent("autosave", { detail: { ok } }));
-        return ok;
+        window.dispatchEvent(new CustomEvent("autosave", { detail: { ok: response.ok } }));
+        return response.ok;
       } catch (err) {
         console.error("Auto-save failed:", err);
         window.dispatchEvent(new CustomEvent("autosave", { detail: { ok: false } }));
@@ -146,6 +183,7 @@ export default function useApi() {
   return {
     isGuest: !token,
     username,
+    userId,
     login,
     register,
     logout,
