@@ -139,16 +139,17 @@ body,
 }
 
 .game__status {
-  position: absolute;
-  top: 16px;
+  position: fixed;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.75);
-  color: white;
-  padding: 10px 14px;
-  border-radius: 8px;
-  z-index: 20;
-  font-size: 13px;
+  background: rgba(15, 23, 42, 0.72);
+  color: rgba(255, 255, 255, 0.94);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  z-index: 40;
+  pointer-events: none;
 }
 
 .game__win {
@@ -283,4 +284,221 @@ body,
 
 [data-theme="dark"] .game__header {
   background: #0f172a;
+}
+
+.game__timer {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.6rem;
+  color: #60a5fa;
+  font-family: "Courier New", monospace;
+  text-shadow: 0 0 10px rgba(96, 165, 250, 0.35);
+  z-index: 40;
+  pointer-events: none;
+}
+
+.game__end-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: all;
+}
+
+.game__end-screen-content {
+  text-align: center;
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.game__end-screen-title {
+  font-size: 3rem;
+  font-weight: bold;
+  margin-bottom: 16px;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.game__end-screen-title--win {
+  color: #34d399;
+}
+
+.game__end-screen-title--death {
+  color: #f87171;
+}
+
+.game__end-screen-time {
+  font-size: 1.5rem;
+  color: #e5e7eb;
+  font-family: "Courier New", monospace;
+  margin-bottom: 24px;
+}
+
+.game__button {
+  padding: 12px 24px;
+  margin: 8px;
+  background: #60a5fa;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.game__button:hover {
+  background: #3b82f6;
+  transform: translateY(-2px);
+}
+
+.game__leaderboard {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 220px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 40;
+}
+
+.game__leaderboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: none;
+  color: #60a5fa;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.game__leaderboard-header:hover {
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.game__leaderboard-header h4 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.game__leaderboard-toggle {
+  font-size: 0.8rem;
+  color: #60a5fa;
+}
+
+.game__leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.game__leaderboard-entry {
+  display: flex;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #d1d5db;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.game__leaderboard-entry:hover {
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.game__leaderboard-rank {
+  min-width: 24px;
+  color: #60a5fa;
+  font-weight: bold;
+}
+
+.game__leaderboard-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game__leaderboard-time {
+  font-family: "Courier New", monospace;
+  font-weight: 500;
+  color: #fbbf24;
+}
+
+.game__leaderboard-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.game__leaderboard-list::-webkit-scrollbar-thumb {
+  background: rgba(96, 165, 250, 0.3);
+  border-radius: 2px;
+}
+
+.game__leaderboard-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(96, 165, 250, 0.5);
+}
+
+.game__end-overlay-text {
+  text-align: center;
+  max-width: min(560px, 90%);
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 0 18px rgba(0, 0, 0, 0.55);
+  padding: 16px;
+}
+
+.game__end-text {
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: 0.02em;
+}
+
+.game__end-text--win {
+  color: #34d399;
+}
+
+.game__end-text--death {
+  color: #f87171;
+}
+
+.game__end-text-sub {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 18px;
+}
+
+.game__end-cta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.game__end-cta .game__button {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  min-width: 130px;
 }

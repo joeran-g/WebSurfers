@@ -1,29 +1,62 @@
 import { useEffect, useRef, useCallback } from "react";
 
-export default function useWorldPersistence(objects, worldId, isWeeklyWorld, autoSaveWorld) {
+export default function useWorldPersistence(
+  objects,
+  worldId,
+  isCurrentWeeklyWorld,
+  ownedByMe,
+  autoSaveWorld,
+  isPlaying
+) {
   const debounceTimer = useRef(null);
   const lastSavedData = useRef(null);
+  const lastWorldId = useRef(worldId);
+  const lastAutoSaveEnabled = useRef(false);
 
-  const saveWorldData = useCallback(async () => {
-    if (!worldId) return;
-    const serialized = JSON.stringify(objects);
-    if (serialized === lastSavedData.current) return;
-    lastSavedData.current = serialized;
-    await autoSaveWorld(worldId, objects);
-  }, [worldId, objects, autoSaveWorld]);
+  const canAutoSave = Boolean(
+    worldId && !isPlaying && (isCurrentWeeklyWorld || ownedByMe)
+  );
+
+  const saveWorldData = useCallback(
+    async (objectsToSave = objects, force = false) => {
+      if (!force && !canAutoSave) return false;
+
+      const serialized = JSON.stringify(objectsToSave);
+      if (!force && serialized === lastSavedData.current) return false;
+
+      lastSavedData.current = serialized;
+      await autoSaveWorld(worldId, objectsToSave);
+      return true;
+    },
+    [autoSaveWorld, canAutoSave, objects, worldId]
+  );
 
   useEffect(() => {
-    if (!worldId) return;
+    if (!canAutoSave) {
+      lastAutoSaveEnabled.current = false;
+      return;
+    }
+
+    const serialized = JSON.stringify(objects);
+
+    if (worldId !== lastWorldId.current || !lastAutoSaveEnabled.current) {
+      lastWorldId.current = worldId;
+      lastAutoSaveEnabled.current = true;
+      lastSavedData.current = serialized;
+      return;
+    }
+
+    if (serialized === lastSavedData.current) return;
+
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => {
+    debounceTimer.current = window.setTimeout(() => {
       saveWorldData();
     }, 1500);
+
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
-  }, [objects, worldId, saveWorldData]);
+  }, [canAutoSave, objects, saveWorldData, worldId]);
 
-  return {
-    saveWorldData,
-  };
+  return saveWorldData;
 }

@@ -1,7 +1,16 @@
 import confetti from "canvas-confetti";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { Stage, Layer, Rect, Group } from "react-konva";
 
+import InputOverlay from "../InputOverlay";
 import Player from "./objects/Player";
 import Flag from "./objects/Flag";
 import LineObj from "./objects/Line";
@@ -29,14 +38,31 @@ function Game({ onWorldChange }, ref) {
   const [, forceRender] = useState(0);
   const [gameResult, setGameResult] = useState(null);
   const [worldId, setWorldId] = useState(null);
-  const [isWeeklyWorld, setIsWeeklyWorld] = useState(false);
   const [ownedByMe, setOwnedByMe] = useState(false);
   const [worldName, setWorldName] = useState("Untitled World");
-  const initialLoadRef = useRef(false);
-  const manualLoadRef = useRef(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [endScreenData, setEndScreenData] = useState(null);
+  const [worldScores, setWorldScores] = useState({});
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const containerRef = useRef();
   const runStartState = useRef(null);
+  const persistedWorldRef = useRef(null);
+  const startTimeRef = useRef(null);
+  const rafRef = useRef(null);
+  const baseWorldStringRef = useRef("");
+  const baseWorldWithScoresRef = useRef("");
+  const scoreSavedRef = useRef(false);
+  const currentWeeklyWorldIdRef = useRef(null);
+
+  const markBaseWorldData = useCallback((worldData) => {
+    const noScoreWorld = worldData.filter((obj) => obj.type !== "scores");
+    baseWorldStringRef.current = JSON.stringify(noScoreWorld);
+    baseWorldWithScoresRef.current = JSON.stringify(worldData);
+    scoreSavedRef.current = false;
+  }, []);
 
   const {
     stageSize,
@@ -51,10 +77,12 @@ function Game({ onWorldChange }, ref) {
     isPanning,
     resetCamera,
   } = useCamera(DEFAULT_CAMERA);
+
   const drawing = useDrawing(
     screenToWorld,
     toolMode === "draw" || toolMode === "draw-obstacle"
   );
+
   const {
     objects,
     setObjects,
@@ -79,15 +107,38 @@ function Game({ onWorldChange }, ref) {
     setGameResult,
     gameResult
   );
-  const { getWorlds, autoSaveWorld } = useApi();
+
+  const { getWorlds, autoSaveWorld, username } = useApi();
   const { theme } = useTheme();
-  useWorldPersistence(objects, worldId, isWeeklyWorld, (id, data) => autoSaveWorld(id, data, ownedByMe));
+  const isCurrentWeeklyWorld = Boolean(
+    worldId &&
+      currentWeeklyWorldIdRef.current &&
+      worldId === currentWeeklyWorldIdRef.current
+  );
+
+  const saveWorldData = useWorldPersistence(
+    objects,
+    worldId,
+    isCurrentWeeklyWorld,
+    ownedByMe,
+    autoSaveWorld,
+    isPlaying
+  );
+
+  const canAutoSaveWorld = Boolean(
+    worldId && !isPlaying && (isCurrentWeeklyWorld || ownedByMe)
+  );
+
+  const attachScoresToObjects = useCallback((worldObjects, scores) => {
+    const cleaned = worldObjects.filter((obj) => obj.type !== "scores");
+    if (!scores || Object.keys(scores).length === 0) return cleaned;
+    return [...cleaned, { type: "scores", scores }];
+  }, []);
 
   const updateWorldInfo = useCallback(
     (name, weekly, owned) => {
       const resolvedName = name || "Untitled World";
       setWorldName(resolvedName);
-      setIsWeeklyWorld(Boolean(weekly));
       setOwnedByMe(Boolean(owned));
       onWorldChange?.({
         id: worldId,
@@ -99,45 +150,235 @@ function Game({ onWorldChange }, ref) {
     [onWorldChange, worldId]
   );
 
+  const formatTime = useCallback((ms) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const centiseconds = Math.floor((ms % 1000) / 10);
+    return `${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}.${centiseconds.toString().padStart(2, "0")}`;
+  }, []);
+
+  const handleSaveScore = useCallback(() => {
+    if (!username || !worldId) return;
+
+    const newScores = { ...worldScores };
+    if (!newScores[username] || elapsedTime < newScores[username]) {
+      newScores[username] = elapsedTime;
+    } else {
+      return;
+    }
+
+    const updatedObjects = attachScoresToObjects(objects, newScores);
+    setWorldScores(newScores);
+    setObjects(updatedObjects);
+    markBaseWorldData(updatedObjects);
+
+    const scoreOnlyWorldData = attachScoresToObjects(
+      persistedWorldRef.current || objects,
+      newScores
+    );
+
+    const worldDataToSave = canAutoSaveWorld
+      ? updatedObjects
+      : scoreOnlyWorldData;
+
+    persistedWorldRef.current = worldDataToSave;
+    saveWorldData(worldDataToSave, true);
+  }, [
+    attachScoresToObjects,
+    canAutoSaveWorld,
+    elapsedTime,
+    markBaseWorldData,
+    objects,
+    saveWorldData,
+    username,
+    worldId,
+    worldScores,
+  ]);
+
+  const resetRun = useCallback(() => {
+    setPhysicsEnabled(false);
+    setIsPlaying(false);
+    setGameResult(null);
+    setSelectedId(null);
+    setObjectMenuPos(null);
+    if (runStartState.current) {
+      setObjects(JSON.parse(JSON.stringify(runStartState.current)));
+    }
+    clearPendingPositions();
+    resetCamera(DEFAULT_CAMERA);
+  }, [clearPendingPositions, resetCamera, setObjects]);
+
+  const startGame = useCallback(() => {
+    runStartState.current = JSON.parse(JSON.stringify(objects));
+    setSelectedId(null);
+    setObjectMenuPos(null);
+    setToolMode(null);
+    setToolMenuOpen(false);
+    setGameResult(null);
+    resetCamera(DEFAULT_CAMERA);
+    buildWorld();
+    setPhysicsEnabled(true);
+    setIsPlaying(true);
+    startTimeRef.current = Date.now();
+    setElapsedTime(0);
+    setEndScreenData(null);
+  }, [buildWorld, objects, resetCamera]);
+
+  const handleContinue = useCallback(() => {
+    setPhysicsEnabled(false);
+    setIsPlaying(false);
+    setGameResult(null);
+    setEndScreenData(null);
+    if (runStartState.current) {
+      setObjects(JSON.parse(JSON.stringify(runStartState.current)));
+    }
+    resetCamera(DEFAULT_CAMERA);
+  }, [resetCamera, setObjects]);
+
+  const renderObject = useCallback(
+    (obj) => {
+      const renderObj = obj.id === selectedId && selectedObject ? selectedObject : obj;
+      const isPlayer = renderObj.type === "player";
+      const playerPos =
+        isPlayer && physicsEnabled && playerBody.current
+          ? playerBody.current.getPosition()
+          : null;
+
+      const x = playerPos ? playerPos.x * 30 : renderObj.x ?? 0;
+      const y = playerPos ? playerPos.y * 30 : renderObj.y ?? 0;
+
+      const commonProps = {
+        x,
+        y,
+        draggable: toolMode === "select",
+        selected: selectedId === renderObj.id && toolMode === "select",
+        onSelect: () => {
+          if (toolMode === "select") {
+            setSelectedId(renderObj.id);
+          }
+        },
+        onDragEnd: (event) => {
+          if (renderObj.type === "line" || renderObj.type === "obstacle") {
+            handleLineDragEnd(renderObj.id, event);
+          } else {
+            handleObjectDragEnd(renderObj.id, event);
+          }
+        },
+      };
+
+      if (renderObj.type === "player") return <Player key={renderObj.id} {...commonProps} />;
+      if (renderObj.type === "flag") return <Flag key={renderObj.id} {...commonProps} />;
+      if (renderObj.type === "line")
+        return (
+          <LineObj
+            key={renderObj.id}
+            {...commonProps}
+            points={renderObj.points}
+            stroke={theme === "light" ? "black" : "#ccc"}
+          />
+        );
+      if (renderObj.type === "obstacle")
+        return (
+          <LineObj
+            key={renderObj.id}
+            {...commonProps}
+            points={renderObj.points}
+            stroke="red"
+          />
+        );
+      return null;
+    },
+    [
+      selectedId,
+      selectedObject,
+      physicsEnabled,
+      playerBody,
+      toolMode,
+      theme,
+      handleLineDragEnd,
+      handleObjectDragEnd,
+    ]
+  );
+
   useEffect(() => {
-    if (initialLoadRef.current || manualLoadRef.current) return;
-    initialLoadRef.current = true;
+    if (initialLoadDone) return;
 
     const loadInitialWorld = async () => {
-      const worlds = await getWorlds();
-      if (!worlds?.length) return;
+      try {
+        const worlds = await getWorlds();
+        if (!worlds?.length) return;
 
-      const weekly = worlds.find((world) => world.is_weekly_world);
-      const selected = weekly || worlds[0];
-      if (!selected?.world_data) return;
+        const weekly = worlds.find((world) => world.is_weekly_world);
+        currentWeeklyWorldIdRef.current = weekly?.id || null;
 
-      setObjects(selected.world_data);
-      setWorldId(selected.id || null);
-      setOwnedByMe(false);
-      updateWorldInfo(selected.name, selected.is_weekly_world, false);
-      runStartState.current = JSON.parse(JSON.stringify(selected.world_data));
+        const selected = weekly || worlds[0];
+        if (!selected?.world_data) return;
+
+        setObjects(selected.world_data);
+        setWorldId(selected.id || null);
+        setOwnedByMe(false);
+        updateWorldInfo(selected.name, Boolean(selected.is_weekly_world), false);
+        runStartState.current = JSON.parse(JSON.stringify(selected.world_data));
+        persistedWorldRef.current = selected.world_data;
+        markBaseWorldData(selected.world_data);
+      } catch (err) {
+        console.error("Failed to load initial world:", err);
+      } finally {
+        setInitialLoadDone(true);
+      }
     };
 
     loadInitialWorld();
-  }, [getWorlds, setObjects, updateWorldInfo]);
+  }, [initialLoadDone, getWorlds, markBaseWorldData, setObjects, updateWorldInfo]);
+
+  useEffect(() => {
+    const scoresObj = objects.find((obj) => obj.type === "scores");
+    if (scoresObj && typeof scoresObj.scores === "object") {
+      setWorldScores(scoresObj.scores);
+    } else {
+      setWorldScores({});
+    }
+  }, [objects]);
 
   useImperativeHandle(
     ref,
     () => ({
       getCurrentObjects: () => objects,
-      loadWorld: (worldData, name = "Untitled World", id = null, isWeekly = false, owned = false) => {
+      loadWorld: (
+        worldData,
+        name = "Untitled World",
+        id = null,
+        isWeekly = false,
+        owned = false
+      ) => {
         if (!worldData) return;
+
+        setPhysicsEnabled(false);
+        setIsPlaying(false);
+        setGameResult(null);
+        setEndScreenData(null);
         setObjects(worldData);
         setWorldId(id);
         setOwnedByMe(Boolean(owned));
+        setWorldScores(worldData.find((obj) => obj.type === "scores")?.scores || {});
         updateWorldInfo(name, isWeekly, owned);
         clearPendingPositions();
         setSelectedId(null);
         setObjectMenuPos(null);
         runStartState.current = JSON.parse(JSON.stringify(worldData));
+        persistedWorldRef.current = worldData;
         resetCamera(DEFAULT_CAMERA);
+        setInitialLoadDone(true);
+        markBaseWorldData(worldData);
       },
       createBlankWorld: () => {
+        setPhysicsEnabled(false);
+        setIsPlaying(false);
+        setGameResult(null);
+        setEndScreenData(null);
         setObjects(DEFAULT_WORLD);
         setWorldId(null);
         setOwnedByMe(false);
@@ -146,21 +387,31 @@ function Game({ onWorldChange }, ref) {
         setSelectedId(null);
         setObjectMenuPos(null);
         runStartState.current = JSON.parse(JSON.stringify(DEFAULT_WORLD));
+        persistedWorldRef.current = DEFAULT_WORLD;
         resetCamera(DEFAULT_CAMERA);
+        setInitialLoadDone(true);
+        markBaseWorldData(DEFAULT_WORLD);
       },
     }),
-    [objects, setObjects, updateWorldInfo, resetCamera, clearPendingPositions]
+    [
+      objects,
+      setObjects,
+      updateWorldInfo,
+      resetCamera,
+      clearPendingPositions,
+      markBaseWorldData,
+    ]
   );
 
   useEffect(() => {
-    if (gameResult !== "win") return undefined;
+    if (gameResult !== "win") return;
 
     const burst = () => {
       confetti({
         particleCount: 90,
         spread: 90,
         startVelocity: 40,
-        origin: { x: 0.5 , y: 0.5 },
+        origin: { x: 0.5, y: 0.5 },
       });
     };
 
@@ -205,35 +456,42 @@ function Game({ onWorldChange }, ref) {
       setSelectedId(null);
       setObjectMenuPos(null);
     }
-  }, [toolMode, setSelectedId]);
-
-  const resetRun = useCallback(() => {
-    setPhysicsEnabled(false);
-    setGameResult(null);
-    setSelectedId(null);
-    setObjectMenuPos(null);
-    if (runStartState.current) {
-      setObjects(JSON.parse(JSON.stringify(runStartState.current)));
-    }
-    clearPendingPositions();
-    resetCamera(DEFAULT_CAMERA);
-  }, [setObjects, resetCamera, clearPendingPositions]);
+  }, [toolMode]);
 
   useEffect(() => {
-    if (gameResult === "win" && physicsEnabled) {
-      setPhysicsEnabled(false);
-    }
-  }, [gameResult, physicsEnabled]);
+    if (!gameResult) return;
+    setIsPlaying(false);
+    setPhysicsEnabled(false);
+    setEndScreenData({
+      type: gameResult === "win" ? "win" : "death",
+      time: elapsedTime,
+    });
+  }, [gameResult, elapsedTime]);
 
-  const startGame = () => {
-    runStartState.current = JSON.parse(JSON.stringify(objects));
-    setSelectedId(null);
-    setObjectMenuPos(null);
-    setGameResult(null);
-    setPhysicsEnabled(true);
-    resetCamera(DEFAULT_CAMERA);
-    buildWorld();
-  };
+  useEffect(() => {
+    if (!isPlaying) {
+      if (rafRef.current) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      return;
+    }
+
+    const tick = () => {
+      if (startTimeRef.current !== null) {
+        setElapsedTime(Date.now() - startTimeRef.current);
+      }
+      rafRef.current = window.requestAnimationFrame(tick);
+    };
+
+    rafRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current) {
+        window.cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [isPlaying]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -250,20 +508,10 @@ function Game({ onWorldChange }, ref) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [physicsEnabled, resetRun, startGame, gameResult]);
+  }, [physicsEnabled, gameResult, resetRun, startGame]);
 
   useEffect(() => {
-    if (!gameResult) return;
-
-    const handleContinue = () => {
-      setPhysicsEnabled(false);
-      setGameResult(null);
-      if (runStartState.current) {
-        setObjects(JSON.parse(JSON.stringify(runStartState.current)));
-      }
-      resetCamera(DEFAULT_CAMERA);
-    };
-
+    if (!endScreenData) return;
     const handleAny = (event) => {
       event.preventDefault();
       handleContinue();
@@ -275,15 +523,19 @@ function Game({ onWorldChange }, ref) {
       window.removeEventListener("keydown", handleAny);
       window.removeEventListener("mousedown", handleAny);
     };
-  }, [gameResult, resetCamera, setObjects]);
+  }, [endScreenData, handleContinue]);
 
-  const stopGame = () => {
-    setPhysicsEnabled(false);
-    setGameResult(null);
-    setSelectedId(null);
-    setObjectMenuPos(null);
-    resetCamera(DEFAULT_CAMERA);
-  };
+  useEffect(() => {
+    if (!endScreenData || endScreenData.type !== "win" || !username || scoreSavedRef.current) return;
+    handleSaveScore();
+    scoreSavedRef.current = true;
+  }, [endScreenData, handleSaveScore, username]);
+
+  const topScores = useMemo(() => {
+    return Object.entries(worldScores)
+      .sort((a, b) => a[1] - b[1])
+      .slice(0, 10);
+  }, [worldScores]);
 
   const handleMouseDown = (e) => {
     const stage = e.target.getStage();
@@ -293,9 +545,7 @@ function Game({ onWorldChange }, ref) {
       e.target === stage || e.target.name() === "background";
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
 
-    if (physicsEnabled || gameResult) {
-      return;
-    }
+    if (physicsEnabled || gameResult) return;
 
     if (isDrawMode) {
       if (drawing.handleMouseDown(e)) return;
@@ -351,51 +601,26 @@ function Game({ onWorldChange }, ref) {
     }
   };
 
-  const renderObject = (obj) => {
-    const renderObj = obj.id === selectedId && selectedObject ? selectedObject : obj;
-    const isPlayer = renderObj.type === "player";
-    const playerPos =
-      isPlayer && physicsEnabled && playerBody.current
-        ? playerBody.current.getPosition()
-        : null;
+  useEffect(() => {
+    const currentNoScores = objects.filter((obj) => obj.type !== "scores");
+    const currentNoScoresString = JSON.stringify(currentNoScores);
 
-    const x = playerPos ? playerPos.x * 30 : renderObj.x ?? 0;
-    const y = playerPos ? playerPos.y * 30 : renderObj.y ?? 0;
+    // First load
+    if (!baseWorldStringRef.current) {
+      baseWorldStringRef.current = currentNoScoresString;
+      baseWorldWithScoresRef.current = JSON.stringify(objects);
+      return;
+    }
 
-    const props = {
-      x,
-      y,
-      draggable: toolMode === "select",
-      selected: selectedId === renderObj.id && toolMode === "select",
-      onSelect: () => {
-        if (toolMode === "select") {
-          setSelectedId(renderObj.id);
-        }
-      },
-      onDragEnd: (event) => {
-        if (renderObj.type === "line" || renderObj.type === "obstacle") {
-          handleLineDragEnd(renderObj.id, event);
-        } else {
-          handleObjectDragEnd(renderObj.id, event);
-        }
-      },
-    };
-
-    if (renderObj.type === "player") return <Player key={renderObj.id} {...props} />;
-    if (renderObj.type === "flag") return <Flag key={renderObj.id} {...props} />;
-    if (renderObj.type === "line")
-      return (
-        <LineObj
-          key={renderObj.id}
-          {...props}
-          points={renderObj.points}
-          stroke={theme === "light" ? "black" : "#ccc"}
-        />
-      );
-    if (renderObj.type === "obstacle")
-      return <LineObj key={renderObj.id} {...props} points={renderObj.points} stroke="red" />;
-    return null;
-  };
+    // World objects changed (not just scores)
+    if (currentNoScoresString !== baseWorldStringRef.current) {
+      setWorldScores({});
+      setObjects((prev) => prev.filter((obj) => obj.type !== "scores"));
+      baseWorldStringRef.current = currentNoScoresString;
+      baseWorldWithScoresRef.current = currentNoScoresString;
+      scoreSavedRef.current = false;
+    }
+  }, [objects, setObjects]);
 
   const getCanvasBg = () => {
     return theme === "light" ? "#e0f2fe" : "#1a1f2e";
@@ -403,7 +628,6 @@ function Game({ onWorldChange }, ref) {
 
   return (
     <div className="game">
-      
       <div ref={containerRef} className="game__canvas-wrapper">
         <Stage
           width={stageSize.width}
@@ -413,7 +637,11 @@ function Game({ onWorldChange }, ref) {
           onMouseUp={handleMouseUp}
           onWheel={handleWheel}
           style={{
-            cursor: isPanning ? "grabbing" : toolMode === "draw" || toolMode === "draw-obstacle" ? "crosshair" : "default",
+            cursor: isPanning
+              ? "grabbing"
+              : toolMode === "draw" || toolMode === "draw-obstacle"
+              ? "crosshair"
+              : "default",
           }}
         >
           <Layer>
@@ -433,7 +661,13 @@ function Game({ onWorldChange }, ref) {
                   x={drawing.lines[0].x}
                   y={drawing.lines[0].y}
                   points={drawing.lines[0].points}
-                  stroke={toolMode === "draw-obstacle" ? "red" : theme === "light" ? "black" : "#ccc"}
+                  stroke={
+                    toolMode === "draw-obstacle"
+                      ? "red"
+                      : theme === "light"
+                      ? "black"
+                      : "#ccc"
+                  }
                 />
               )}
             </Group>
@@ -458,28 +692,16 @@ function Game({ onWorldChange }, ref) {
         </div>
 
         <div className={`tool-menu ${toolMenuOpen ? "tool-menu--open" : ""}`}>
+          <button onClick={() => setToolMode("draw")}>Draw Line</button>
+          <button onClick={() => setToolMode("draw-obstacle")}>Draw Obstacle</button>
+          <button onClick={() => setToolMode("select")}>Move/Delete Object</button>
           <button
+            className="tool-menu__close"
             onClick={() => {
-              setToolMode("draw");
+              setToolMenuOpen(false);
+              setToolMode(null);
             }}
           >
-            Draw Line
-          </button>
-          <button
-            onClick={() => {
-              setToolMode("draw-obstacle");
-            }}
-          >
-            Draw Obstacle
-          </button>
-          <button
-            onClick={() => {
-              setToolMode("select");
-            }}
-          >
-            Move/Delete Object
-          </button>
-          <button className="tool-menu__close" onClick={() => {setToolMenuOpen(false); setToolMode(false)}}>
             Close
           </button>
         </div>
@@ -518,45 +740,64 @@ function Game({ onWorldChange }, ref) {
           </div>
         )}
 
-        {physicsEnabled && !gameResult && (
-          <div className="game__status">Physics enabled — arrow left/right to move, space to jump</div>
+        {physicsEnabled && !gameResult && !isPlaying && (
+          <div className="game__status">
+            Physics enabled — arrow left/right to move, space to jump
+          </div>
         )}
 
-        {gameResult && (
-          <div className="game__end-overlay">
-            <div className="game__end-card">
-              <div className="game__end-title">
-                {gameResult === "win" ? "You Won!" : "You Died!"}
-              </div>
-              <div className="game__end-body">
-                {gameResult === "win" ? (
-                  <>
-                    <div className="game__confetti">🎉 🎉 🎉</div>
-                    <p>Reached the flag — nice run!</p>
-                  </>
-                ) : (
-                  <>
-                    <div className="game__boom"></div>
-                    <p>Better luck next time!</p>
-                  </>
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  setPhysicsEnabled(false);
-                  setGameResult(null);
-                  if (runStartState.current) {
-                    setObjects(JSON.parse(JSON.stringify(runStartState.current)));
-                  }
-                  resetCamera(DEFAULT_CAMERA);
-                }}
+        <InputOverlay isPlaying={isPlaying} />
+
+        {isPlaying && <div className="game__timer">{formatTime(elapsedTime)}</div>}
+
+        {endScreenData && (
+          <div className="game__end-screen">
+            <div className="game__end-screen-content">
+              <h2
+                className={`game__end-screen-title game__end-screen-title--${endScreenData.type}`}
               >
+                {endScreenData.type === "win" ? "YOU WIN!" : "YOU DIED"}
+              </h2>
+              <p className="game__end-screen-time">
+                Time: {formatTime(endScreenData.time)}
+              </p>
+              <button className="game__button" onClick={handleContinue}>
                 Continue
               </button>
-              <div className="game__end-hint">Press any key or click to continue</div>
             </div>
           </div>
         )}
+
+        <div className="game__leaderboard">
+          <button
+            className="game__leaderboard-header"
+            onClick={() => setLeaderboardOpen(!leaderboardOpen)}
+          >
+            <h4>Top Times</h4>
+            <span className="game__leaderboard-toggle">
+              {leaderboardOpen ? "▼" : "▶"}
+            </span>
+          </button>
+          {leaderboardOpen && (
+            <div className="game__leaderboard-list">
+              {topScores.length > 0 ? (
+                topScores.map(([name, time], i) => (
+                  <div key={i} className="game__leaderboard-entry">
+                    <span className="game__leaderboard-rank">#{i + 1}</span>
+                    <span className="game__leaderboard-name">{name}</span>
+                    <span className="game__leaderboard-time">
+                      {formatTime(time)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p style={{ fontSize: "0.85rem", color: "#999" }}>
+                  No times yet
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -18,11 +18,16 @@ export default function Menu({
   const [registerPassword, setRegisterPassword] = useState("");
   const [userWorlds, setUserWorlds] = useState([]);
   const [publicWorlds, setPublicWorlds] = useState([]);
-  const [saveName, setSaveName] = useState("");
-  const [saveCurrentName, setSaveCurrentName] = useState("");
-  const [saveResult, setSaveResult] = useState("");
-  const [saveCurrentResult, setSaveCurrentResult] = useState("");
+  const [weeklyWorlds, setWeeklyWorlds] = useState([]);
+  const [loadingWorlds, setLoadingWorlds] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [activeTab, setActiveTab] = useState("weekly");
+  
+  // Save modal state
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveModalName, setSaveModalName] = useState("");
+  const [saveModalPublic, setSaveModalPublic] = useState(false);
+  const [saveModalResult, setSaveModalResult] = useState("");
 
   const {
     isGuest,
@@ -44,15 +49,26 @@ export default function Menu({
 
   useEffect(() => {
     const fetchPublic = async () => {
+      setLoadingWorlds(true);
       const worlds = await getWorlds();
-      setPublicWorlds(worlds || []);
+      const weekly = worlds?.filter((w) => w.is_weekly_world || w.name.includes("Weekly")) || [];
+      const publicWorlds = worlds?.filter((w) => w.is_public && !w.name.includes("Weekly")) || [];
+      setWeeklyWorlds(weekly);
+      setPublicWorlds(publicWorlds);
+      setLoadingWorlds(false);
     };
     fetchPublic();
   }, [getWorlds]);
 
   useEffect(() => {
     if (!isGuest) {
-      getUserWorlds().then(setUserWorlds);
+      const fetchUserWorlds = async () => {
+        setLoadingWorlds(true);
+        const worlds = await getUserWorlds();
+        setUserWorlds(worlds || []);
+        setLoadingWorlds(false);
+      };
+      fetchUserWorlds();
     } else {
       setUserWorlds([]);
     }
@@ -89,12 +105,26 @@ export default function Menu({
     }
   };
 
-  const handleSaveCurrentWorld = async () => {
-    setSaveCurrentResult("");
-    const name = saveCurrentName.trim() || currentWorldMeta?.name || "Untitled World";
+  const handleOpenSaveModal = () => {
+    setSaveModalName(currentWorldMeta?.name || "");
+    setSaveModalPublic(false);
+    setSaveModalResult("");
+    setShowSaveModal(true);
+  };
+
+  const handleCloseSaveModal = () => {
+    setShowSaveModal(false);
+    setSaveModalName("");
+    setSaveModalPublic(false);
+    setSaveModalResult("");
+  };
+
+  const handleSaveFromModal = async () => {
+    setSaveModalResult("");
+    const name = saveModalName.trim() || currentWorldMeta?.name || "Untitled World";
     const worldData = getCurrentWorld();
     if (!Array.isArray(worldData) || !worldData.length) {
-      return setSaveCurrentResult("Nothing to save.");
+      return setSaveModalResult("Nothing to save.");
     }
 
     try {
@@ -102,37 +132,21 @@ export default function Menu({
       if (currentWorldMeta?.id && currentWorldMeta?.ownedByMe) {
         savedWorld = await updateWorld(currentWorldMeta.id, {
           name,
+          is_public: saveModalPublic,
           world_data: worldData,
         });
-        setSaveCurrentResult("Saved changes to current world.");
+        setSaveModalResult("Saved changes!");
       } else {
-        savedWorld = await createWorld(name, worldData, false);
-        setSaveCurrentResult("Saved a copy to your worlds.");
+        savedWorld = await createWorld(name, worldData, saveModalPublic);
+        setSaveModalResult("World saved!");
         setUserWorlds(await getUserWorlds());
       }
 
       onLoadWorld(worldData, savedWorld.name, savedWorld.id, Boolean(savedWorld.is_weekly_world), true);
-      setSaveCurrentName("");
+      setTimeout(handleCloseSaveModal, 800);
     } catch (err) {
       console.error(err);
-      setSaveCurrentResult("Save failed.");
-    }
-  };
-
-  const handleSavePublic = async () => {
-    if (!saveName.trim()) return setSaveResult("Enter a world name first.");
-    const worldData = getCurrentWorld();
-    if (!Array.isArray(worldData) || !worldData.length) {
-      return setSaveResult("Current world is empty.");
-    }
-    try {
-      await saveWorld(saveName.trim(), worldData, true);
-      setSaveResult("Saved public world!");
-      setSaveName("");
-      setPublicWorlds(await getWorlds());
-    } catch (err) {
-      console.error(err);
-      setSaveResult("Save failed.");
+      setSaveModalResult("Save failed.");
     }
   };
 
@@ -152,6 +166,32 @@ export default function Menu({
   const handleCreateBlankWorld = () => {
     onCreateBlankWorld?.();
     handleClose();
+  };
+
+  const renderWorldList = (worlds, isOwnedByUser = false) => {
+    if (loadingWorlds) {
+      return <p style={{ textAlign: "center", color: "#999" }}>Loading Worlds…</p>;
+    }
+    if (!worlds.length) {
+      return <p>{isOwnedByUser ? "You have no saved worlds yet." : "No worlds available."}</p>;
+    }
+    return (
+      <div className="menu__world-list">
+        {worlds.map((world) => (
+          <div key={world.id} className="menu__world-item">
+            <div className="menu__world-info">
+              <strong>{world.name || "Untitled"}</strong>
+              {world.is_weekly_world && (
+                <span className="menu__world-badge">Weekly</span>
+              )}
+            </div>
+            <button className="menu__button menu__button--small" onClick={() => handleLoadWorld(world, isOwnedByUser)}>
+              Load
+            </button>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const currentIsOwned = Boolean(currentWorldMeta?.id && currentWorldMeta?.ownedByMe);
@@ -234,98 +274,95 @@ export default function Menu({
         )}
 
         <div className="menu__section">
-          <h3>Create / load worlds</h3>
+          <h3>Create world</h3>
           <button className="menu__button" onClick={handleCreateBlankWorld}>
             Create blank world
           </button>
         </div>
 
-        <div className="menu__section">
-          <h3>Save current world</h3>
-          {isGuest ? (
-            <p>Login to save the current world to your account.</p>
-          ) : (
-            <>
-              <input
-                className="menu__button"
-                value={saveCurrentName}
-                onChange={(e) => setSaveCurrentName(e.target.value)}
-                placeholder={currentWorldMeta?.name || "World name"}
-              />
-              <button
-                className="menu__button menu__button--primary"
-                onClick={handleSaveCurrentWorld}
-              >
-                {currentIsOwned ? "Save changes" : "Save a copy to my worlds"}
-              </button>
-              {saveCurrentResult && <p style={{ marginTop: 8, fontSize: "13px" }}>{saveCurrentResult}</p>}
-            </>
-          )}
-        </div>
-
         {!isGuest && (
           <div className="menu__section">
-            <h3>Save public world</h3>
-            <input
-              className="menu__button"
-              value={saveName}
-              onChange={(e) => setSaveName(e.target.value)}
-              placeholder="Public world name"
-            />
             <button
               className="menu__button menu__button--primary"
-              onClick={handleSavePublic}
+              onClick={handleOpenSaveModal}
             >
-              Save public world
+              Save current world
             </button>
-            {saveResult && <p style={{ marginTop: 8, fontSize: "13px" }}>{saveResult}</p>}
           </div>
         )}
 
         <div className="menu__section">
-          <h3>Official worlds</h3>
-          {publicWorlds.length ? (
-            publicWorlds.map((world) => (
-              <div key={world.id} style={{ marginBottom: 10 }}>
-                <strong>{world.name || "Untitled"}</strong>
-                {world.is_weekly_world && (
-                  <span style={{ marginLeft: 8, fontSize: 12, color: "#60a5fa" }}>
-                    Weekly
-                  </span>
-                )}
-                <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
-                  <button className="menu__button" onClick={() => handleLoadWorld(world, false)}>
-                    Load
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p>No official worlds available.</p>
-          )}
-          {loadError && <p style={{ color: "#f87171", marginTop: 8 }}>{loadError}</p>}
-        </div>
-
-        {!isGuest && (
-          <div className="menu__section">
-            <h3>Your worlds</h3>
-            {userWorlds.length ? (
-              <ul style={{ listStyle: "none", padding: 0 }}>
-                {userWorlds.map((world) => (
-                  <li key={world.id} style={{ marginBottom: 10 }}>
-                    <strong>{world.name}</strong>
-                    <button className="menu__button" onClick={() => handleLoadWorld(world, true)}>
-                      Load
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>You have no saved worlds yet.</p>
+          <h3>Worlds</h3>
+          <div className="menu__tabs">
+            <button
+              className={`menu__tab ${activeTab === "weekly" ? "menu__tab--active" : ""}`}
+              onClick={() => setActiveTab("weekly")}
+            >
+              Weekly
+            </button>
+            <button
+              className={`menu__tab ${activeTab === "public" ? "menu__tab--active" : ""}`}
+              onClick={() => setActiveTab("public")}
+            >
+              Public
+            </button>
+            {!isGuest && (
+              <button
+                className={`menu__tab ${activeTab === "personal" ? "menu__tab--active" : ""}`}
+                onClick={() => setActiveTab("personal")}
+              >
+                Personal
+              </button>
             )}
           </div>
-        )}
+
+          {activeTab === "weekly" && renderWorldList(weeklyWorlds, false)}
+          {activeTab === "public" && renderWorldList(publicWorlds, false)}
+          {activeTab === "personal" && !isGuest && renderWorldList(userWorlds, true)}
+
+          {loadError && <p style={{ color: "#f87171", marginTop: 8 }}>{loadError}</p>}
+        </div>
       </div>
+
+      {/* Save Modal */}
+      {showSaveModal && (
+        <>
+          <div className="menu__modal-overlay" onClick={handleCloseSaveModal} />
+          <div className="menu__modal">
+            <div className="menu__modal-header">
+              <h3>Save World</h3>
+              <button className="menu__modal-close" onClick={handleCloseSaveModal}>✕</button>
+            </div>
+
+            <input
+              className="menu__button"
+              value={saveModalName}
+              onChange={(e) => setSaveModalName(e.target.value)}
+              placeholder="World name"
+              autoFocus
+            />
+
+            <label className="menu__checkbox-label">
+              <input
+                type="checkbox"
+                checked={saveModalPublic}
+                onChange={(e) => setSaveModalPublic(e.target.checked)}
+              />
+              <span>Make public</span>
+            </label>
+
+            <button className="menu__button menu__button--primary" onClick={handleSaveFromModal}>
+              Save
+            </button>
+
+            {saveModalResult && (
+              <p style={{ marginTop: 12, fontSize: "13px", textAlign: "center" }}>
+                {saveModalResult}
+              </p>
+            )}
+          </div>
+        </>
+      )}
     </>
   );
 }
