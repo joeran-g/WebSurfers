@@ -288,3 +288,35 @@
 .menu__button::placeholder {
   color: var(--text-color-secondary);
 }
+
+.menu--mobile {
+  width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.menu--mobile .menu__world-list {
+  max-height: 300px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .menu {
+    width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .menu__button {
+    padding: 12px;
+    font-size: 16px;
+  }
+  
+  .menu__tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

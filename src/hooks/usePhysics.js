@@ -181,12 +181,8 @@ export default function usePhysics(
     });
   }, [objects, toWorld, gameResult, setGameResult]);
 
+  // Keyboard listeners - runs once when component mounts
   useEffect(() => {
-    if (!physicsEnabled || !worldRef.current) return undefined;
-
-    let frameId = null;
-    const world = worldRef.current;
-
     const handleKeyDown = (event) => {
       if (event.key === "ArrowLeft") keys.current.left = true;
       if (event.key === "ArrowRight") keys.current.right = true;
@@ -204,6 +200,19 @@ export default function usePhysics(
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []); // Empty dependency array - runs once
+
+  // Physics loop - only runs when physicsEnabled is true
+  useEffect(() => {
+    if (!physicsEnabled || !worldRef.current) return;
+
+    let frameId = null;
+    const world = worldRef.current;
 
     const update = () => {
       frameId = requestAnimationFrame(update);
@@ -287,8 +296,6 @@ export default function usePhysics(
 
     return () => {
       if (frameId) cancelAnimationFrame(frameId);
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
     };
   }, [
     physicsEnabled,

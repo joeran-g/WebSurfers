@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../styles/InputOverlay.css";
 
 export default function InputOverlay({ isPlaying }) {
+  const leftBtnRef = useRef(null);
+  const rightBtnRef = useRef(null);
+  const jumpBtnRef = useRef(null);
   const [pressedKeys, setPressedKeys] = useState({
-    arrowLeft: false,
-    arrowRight: false,
-    space: false,
+    left: false,
+    right: false,
+    jump: false,
   });
 
   useEffect(() => {
@@ -13,24 +16,21 @@ export default function InputOverlay({ isPlaying }) {
 
     const handleKeyDown = (e) => {
       if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        setPressedKeys((prev) => ({ ...prev, arrowLeft: true }));
+        setPressedKeys((prev) => ({ ...prev, left: true }));
       } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        setPressedKeys((prev) => ({ ...prev, arrowRight: true }));
+        setPressedKeys((prev) => ({ ...prev, right: true }));
       } else if (e.key === " ") {
-        e.preventDefault();
-        setPressedKeys((prev) => ({ ...prev, space: true }));
+        setPressedKeys((prev) => ({ ...prev, jump: true }));
       }
     };
 
     const handleKeyUp = (e) => {
       if (e.key === "ArrowLeft") {
-        setPressedKeys((prev) => ({ ...prev, arrowLeft: false }));
+        setPressedKeys((prev) => ({ ...prev, left: false }));
       } else if (e.key === "ArrowRight") {
-        setPressedKeys((prev) => ({ ...prev, arrowRight: false }));
+        setPressedKeys((prev) => ({ ...prev, right: false }));
       } else if (e.key === " ") {
-        setPressedKeys((prev) => ({ ...prev, space: false }));
+        setPressedKeys((prev) => ({ ...prev, jump: false }));
       }
     };
 
@@ -45,10 +45,20 @@ export default function InputOverlay({ isPlaying }) {
 
   const handleTouchStart = (key) => {
     setPressedKeys((prev) => ({ ...prev, [key]: true }));
+    const event = new KeyboardEvent("keydown", {
+      key: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : " ",
+      code: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : "Space",
+    });
+    window.dispatchEvent(event);
   };
 
   const handleTouchEnd = (key) => {
     setPressedKeys((prev) => ({ ...prev, [key]: false }));
+    const event = new KeyboardEvent("keyup", {
+      key: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : " ",
+      code: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : "Space",
+    });
+    window.dispatchEvent(event);
   };
 
   if (!isPlaying) return null;
@@ -56,44 +66,36 @@ export default function InputOverlay({ isPlaying }) {
   return (
     <div className="input-overlay">
       <div className="input-overlay__group">
-        <div
+        <button
+          ref={leftBtnRef}
           className={`input-overlay__button input-overlay__button--left ${
-            pressedKeys.arrowLeft ? "input-overlay__button--active" : ""
+            pressedKeys.left ? "input-overlay__button--active" : ""
           }`}
-          onTouchStart={() => handleTouchStart("arrowLeft")}
-          onTouchEnd={() => handleTouchEnd("arrowLeft")}
-          onMouseDown={() => handleTouchStart("arrowLeft")}
-          onMouseUp={() => handleTouchEnd("arrowLeft")}
-          onMouseLeave={() => handleTouchEnd("arrowLeft")}
+          onTouchStart={() => handleTouchStart("left")}
+          onTouchEnd={() => handleTouchEnd("left")}
         >
-          ← Left
-        </div>
-
-        <div
-          className={`input-overlay__button input-overlay__button--jump ${
-            pressedKeys.space ? "input-overlay__button--active" : ""
-          }`}
-          onTouchStart={() => handleTouchStart("space")}
-          onTouchEnd={() => handleTouchEnd("space")}
-          onMouseDown={() => handleTouchStart("space")}
-          onMouseUp={() => handleTouchEnd("space")}
-          onMouseLeave={() => handleTouchEnd("space")}
-        >
-          Space
-        </div>
-
-        <div
+          ◀
+        </button>
+        <button
+          ref={rightBtnRef}
           className={`input-overlay__button input-overlay__button--right ${
-            pressedKeys.arrowRight ? "input-overlay__button--active" : ""
+            pressedKeys.right ? "input-overlay__button--active" : ""
           }`}
-          onTouchStart={() => handleTouchStart("arrowRight")}
-          onTouchEnd={() => handleTouchEnd("arrowRight")}
-          onMouseDown={() => handleTouchStart("arrowRight")}
-          onMouseUp={() => handleTouchEnd("arrowRight")}
-          onMouseLeave={() => handleTouchEnd("arrowRight")}
+          onTouchStart={() => handleTouchStart("right")}
+          onTouchEnd={() => handleTouchEnd("right")}
         >
-          Right →
-        </div>
+          ▶
+        </button>
+        <button
+          ref={jumpBtnRef}
+          className={`input-overlay__button input-overlay__button--jump ${
+            pressedKeys.jump ? "input-overlay__button--active" : ""
+          }`}
+          onTouchStart={() => handleTouchStart("jump")}
+          onTouchEnd={() => handleTouchEnd("jump")}
+        >
+          JUMP
+        </button>
       </div>
     </div>
   );

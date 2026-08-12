@@ -10,6 +10,7 @@ export default function Menu({
   currentWorldMeta,
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [authMessage, setAuthMessage] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
@@ -45,6 +46,8 @@ export default function Menu({
 
   useEffect(() => {
     setIsOpen(true);
+    // Detect mobile
+    setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
   }, []);
 
   useEffect(() => {
@@ -198,8 +201,11 @@ export default function Menu({
 
   return (
     <>
-      <div className={`menu__overlay ${!isOpen ? "menu__overlay--closing" : ""}`} onClick={handleClose} />
-      <div className={`menu ${isOpen ? "menu_open" : ""}`}>
+      <div 
+        className={`menu__overlay ${!isOpen ? "menu__overlay--closing" : ""}`} 
+        onClick={handleClose} 
+      />
+      <div className={`menu ${isOpen ? "menu_open" : ""} ${isMobile ? "menu--mobile" : ""}`}>
         <div className="menu__header">
           <h2>Menu</h2>
           <button className="menu_closed" onClick={handleClose}>✕</button>

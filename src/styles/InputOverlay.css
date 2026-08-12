@@ -1,6 +1,6 @@
 .input-overlay {
   position: fixed;
-  bottom: 14px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
@@ -9,58 +9,103 @@
 
 .input-overlay__group {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   justify-content: center;
   align-items: center;
   pointer-events: auto;
 }
 
 .input-overlay__button {
-  width: 46px;
-  height: 46px;
-  border-radius: 8px;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.1);
   border: 2px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.68);
-  font-size: 0.68rem;
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   user-select: none;
-  transition: all 0.1s;
+  transition: all 0.15s ease-out;
   touch-action: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.input-overlay__button:hover {
+  background: rgba(96, 165, 250, 0.15);
+  border-color: rgba(96, 165, 250, 0.4);
 }
 
 .input-overlay__button:active,
 .input-overlay__button--active {
-  background: rgba(96, 165, 250, 0.3);
-  border-color: rgba(96, 165, 250, 0.6);
-  color: #60a5fa;
-  box-shadow: 0 0 12px rgba(96, 165, 250, 0.3);
+  background: rgba(59, 130, 246, 0.4);
+  border-color: rgba(59, 130, 246, 0.8);
+  color: #3b82f6;
+  transform: scale(0.92);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.4), inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .input-overlay__button--jump {
-  width: 62px;
-  background: rgba(96, 165, 250, 0.05);
-  border-color: rgba(96, 165, 250, 0.2);
+  width: 80px;
+  background: rgba(96, 165, 250, 0.08);
+  border-color: rgba(96, 165, 250, 0.25);
+  font-size: 13px;
+}
+
+.input-overlay__button--jump:hover {
+  background: rgba(96, 165, 250, 0.15);
+  border-color: rgba(96, 165, 250, 0.5);
 }
 
 .input-overlay__button--jump:active,
 .input-overlay__button--jump.input-overlay__button--active {
-  background: rgba(96, 165, 250, 0.25);
-  border-color: rgba(96, 165, 250, 0.7);
+  background: rgba(59, 130, 246, 0.35);
+  border-color: rgba(59, 130, 246, 0.85);
+  color: #3b82f6;
 }
 
 @media (max-width: 768px) {
+  .input-overlay {
+    bottom: 16px;
+  }
+
+  .input-overlay__group {
+    gap: 12px;
+  }
+
   .input-overlay__button {
-    width: 46px;
-    height: 46px;
-    font-size: 0.65rem;
+    width: 52px;
+    height: 52px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+
+  .input-overlay__button--jump {
+    width: 72px;
+  }
+}
+
+@media (max-width: 480px) {
+  .input-overlay {
+    bottom: 12px;
+  }
+
+  .input-overlay__group {
+    gap: 10px;
+  }
+
+  .input-overlay__button {
+    width: 48px;
+    height: 48px;
+    font-size: 11px;
   }
 
   .input-overlay__button--jump {
     width: 64px;
+    font-size: 11px;
   }
 }

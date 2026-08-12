@@ -116,6 +116,10 @@ function Game({ onWorldChange }, ref) {
       worldId === currentWeeklyWorldIdRef.current
   );
 
+  const getCanvasBg = useCallback(() => {
+    return theme === "light" ? "#e0f2fe" : "#1a1f2e";
+  }, [theme]);
+
   const saveWorldData = useWorldPersistence(
     objects,
     worldId,
@@ -342,6 +346,25 @@ function Game({ onWorldChange }, ref) {
       setWorldScores({});
     }
   }, [objects]);
+
+  useEffect(() => {
+    const currentNoScores = objects.filter((obj) => obj.type !== "scores");
+    const currentNoScoresString = JSON.stringify(currentNoScores);
+
+    if (!baseWorldStringRef.current) {
+      baseWorldStringRef.current = currentNoScoresString;
+      return;
+    }
+
+    if (currentNoScoresString !== baseWorldStringRef.current) {
+      if (objects.some((obj) => obj.type === "scores")) {
+        setObjects((prev) => prev.filter((obj) => obj.type !== "scores"));
+      }
+      setWorldScores({});
+      baseWorldStringRef.current = currentNoScoresString;
+      scoreSavedRef.current = false;
+    }
+  }, [objects, setObjects]);
 
   useImperativeHandle(
     ref,
@@ -601,31 +624,6 @@ function Game({ onWorldChange }, ref) {
     }
   };
 
-  useEffect(() => {
-    const currentNoScores = objects.filter((obj) => obj.type !== "scores");
-    const currentNoScoresString = JSON.stringify(currentNoScores);
-
-    // First load
-    if (!baseWorldStringRef.current) {
-      baseWorldStringRef.current = currentNoScoresString;
-      baseWorldWithScoresRef.current = JSON.stringify(objects);
-      return;
-    }
-
-    // World objects changed (not just scores)
-    if (currentNoScoresString !== baseWorldStringRef.current) {
-      setWorldScores({});
-      setObjects((prev) => prev.filter((obj) => obj.type !== "scores"));
-      baseWorldStringRef.current = currentNoScoresString;
-      baseWorldWithScoresRef.current = currentNoScoresString;
-      scoreSavedRef.current = false;
-    }
-  }, [objects, setObjects]);
-
-  const getCanvasBg = () => {
-    return theme === "light" ? "#e0f2fe" : "#1a1f2e";
-  };
-
   return (
     <div className="game">
       <div ref={containerRef} className="game__canvas-wrapper">
@@ -635,6 +633,43 @@ function Game({ onWorldChange }, ref) {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onTouchStart={(e) => {
+            const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+            if (isDrawMode) {
+              if (drawing.handleTouchStart(e)) return;
+              setSelectedId(null);
+              return;
+            }
+            if (e.touches[0]) {
+              startPan(e.touches[0]);
+            }
+          }}
+          onTouchMove={(e) => {
+            const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+            if (isDrawMode) {
+              drawing.handleTouchMove(e);
+              return;
+            }
+            if (isPanning && e.touches[0]) {
+              movePan(e.touches[0]);
+            }
+          }}
+          onTouchEnd={() => {
+            const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+            if (isDrawMode) {
+              const finishedLine = drawing.handleTouchEnd();
+              if (finishedLine) {
+                if (toolMode === "draw-obstacle") {
+                  finishedLine.type = "obstacle";
+                }
+                setObjects((prev) => [...prev, finishedLine]);
+              }
+              return;
+            }
+            if (isPanning) {
+              endPan();
+            }
+          }}
           onWheel={handleWheel}
           style={{
             cursor: isPanning
