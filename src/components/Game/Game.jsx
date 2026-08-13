@@ -724,6 +724,7 @@ function Game({ onWorldChange }, ref) {
               : toolMode === "draw" || toolMode === "draw-obstacle"
               ? "crosshair"
               : "default",
+            touchAction: "none",
           }}
         >
           <Layer>
