@@ -584,6 +584,12 @@ function Game({ onWorldChange }, ref) {
       return;
     }
 
+    // Middle mouse button pans in any mode
+    if (clickedOnStageBackground && e.evt.button === 1) {
+      startPan(e.evt);
+      return;
+    }
+
     if (clickedOnStageBackground && e.evt.button === 0) {
       startPan(e.evt);
       return;
@@ -624,6 +630,92 @@ function Game({ onWorldChange }, ref) {
     }
   };
 
+  const handleTouchStart = (e) => {
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+    
+    // Two-finger touch always pans/zooms
+    if (e.touches.length >= 2) {
+      e.preventDefault();
+      return;
+    }
+
+    if (isDrawMode) {
+      // In draw mode, use drawing touch handlers
+      if (drawing.handleTouchStart(e)) return;
+      setSelectedId(null);
+      return;
+    }
+
+    // Single finger pans in normal mode or with middle mouse
+    if (e.touches[0]) {
+      startPan(e.touches[0]);
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+    
+    // Two-finger pinch zoom
+    if (e.touches.length >= 2) {
+      e.preventDefault();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const dist = Math.hypot(
+        touch1.clientX - touch2.clientX,
+        touch1.clientY - touch2.clientY
+      );
+      
+      // Store previous distance for delta calculation
+      if (!window.lastPinchDist) {
+        window.lastPinchDist = dist;
+        return;
+      }
+      
+      const delta = dist - window.lastPinchDist;
+      const zoomDelta = 1 + delta * 0.01;
+      
+      handleWheel({ evt: { deltaY: -delta * 10 } });
+      window.lastPinchDist = dist;
+      return;
+    }
+
+    if (isDrawMode) {
+      drawing.handleTouchMove(e);
+      return;
+    }
+
+    // In normal mode, continue panning
+    if (isPanning && e.touches[0]) {
+      movePan(e.touches[0]);
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    window.lastPinchDist = null;
+    
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+    
+    if (isDrawMode) {
+      const finishedLine = drawing.handleTouchEnd();
+      if (finishedLine) {
+        if (toolMode === "draw-obstacle") {
+          finishedLine.type = "obstacle";
+        }
+        setObjects((prev) => [...prev, finishedLine]);
+      }
+      return;
+    }
+
+    // In normal mode, end panning
+    if (isPanning) {
+      endPan();
+    }
+  };
+
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+
   return (
     <div className="game">
       <div ref={containerRef} className="game__canvas-wrapper">
@@ -633,43 +725,9 @@ function Game({ onWorldChange }, ref) {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onTouchStart={(e) => {
-            const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
-            if (isDrawMode) {
-              if (drawing.handleTouchStart(e)) return;
-              setSelectedId(null);
-              return;
-            }
-            if (e.touches[0]) {
-              startPan(e.touches[0]);
-            }
-          }}
-          onTouchMove={(e) => {
-            const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
-            if (isDrawMode) {
-              drawing.handleTouchMove(e);
-              return;
-            }
-            if (isPanning && e.touches[0]) {
-              movePan(e.touches[0]);
-            }
-          }}
-          onTouchEnd={() => {
-            const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
-            if (isDrawMode) {
-              const finishedLine = drawing.handleTouchEnd();
-              if (finishedLine) {
-                if (toolMode === "draw-obstacle") {
-                  finishedLine.type = "obstacle";
-                }
-                setObjects((prev) => [...prev, finishedLine]);
-              }
-              return;
-            }
-            if (isPanning) {
-              endPan();
-            }
-          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
           style={{
             cursor: isPanning
@@ -709,22 +767,24 @@ function Game({ onWorldChange }, ref) {
           </Layer>
         </Stage>
 
-        <div className="game__controls">
-          <button
-            className="game__tools-toggle"
-            onClick={() => setToolMenuOpen((prev) => !prev)}
-          >
-            Tools
-          </button>
-          <div className="game__action-row">
-            <button onClick={startGame} disabled={physicsEnabled || !!gameResult}>
-              Start 'Space'
+        {!isPlaying && (
+          <div className="game__controls">
+            <button
+              className="game__tools-toggle"
+              onClick={() => setToolMenuOpen((prev) => !prev)}
+            >
+              Tools
             </button>
-            <button onClick={resetRun} disabled={!physicsEnabled && !gameResult}>
-              Reset 'R'
-            </button>
+            <div className="game__action-row">
+              <button onClick={startGame} disabled={physicsEnabled || !!gameResult}>
+                Start 'Space'
+              </button>
+              <button onClick={resetRun} disabled={!physicsEnabled && !gameResult}>
+                Reset 'R'
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className={`tool-menu ${toolMenuOpen ? "tool-menu--open" : ""}`}>
           <button onClick={() => setToolMode("draw")}>Draw Line</button>
@@ -781,7 +841,7 @@ function Game({ onWorldChange }, ref) {
           </div>
         )}
 
-        <InputOverlay isPlaying={isPlaying} />
+        <InputOverlay isPlaying={isPlaying} onReset={resetRun} />
 
         {isPlaying && <div className="game__timer">{formatTime(elapsedTime)}</div>}
 

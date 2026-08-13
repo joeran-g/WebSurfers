@@ -1,18 +1,48 @@
 .input-overlay {
   position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
   z-index: 50;
   pointer-events: none;
 }
 
-.input-overlay__group {
+/* Desktop layout - centered bottom */
+.input-overlay--desktop {
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.input-overlay--desktop .input-overlay__group {
   display: flex;
   gap: 16px;
   justify-content: center;
   align-items: center;
   pointer-events: auto;
+}
+
+/* Mobile layout - corners */
+.input-overlay--mobile {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 20px;
+  height: 140px;
+}
+
+.input-overlay__group {
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.input-overlay__group--arrows {
+  justify-content: flex-start;
+}
+
+.input-overlay__group--jump {
+  justify-content: flex-end;
 }
 
 .input-overlay__button {
@@ -33,6 +63,13 @@
   touch-action: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+.input-overlay--desktop .input-overlay__button {
+  width: auto;
+  min-width: 100px;
 }
 
 .input-overlay__button:hover {
@@ -56,6 +93,12 @@
   font-size: 13px;
 }
 
+.input-overlay--desktop .input-overlay__button--jump {
+  width: auto;
+  min-width: 120px;
+  font-size: 14px;
+}
+
 .input-overlay__button--jump:hover {
   background: rgba(96, 165, 250, 0.15);
   border-color: rgba(96, 165, 250, 0.5);
@@ -68,13 +111,33 @@
   color: #3b82f6;
 }
 
+.input-overlay__button--reset {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: rgba(239, 68, 68, 0.7);
+  font-size: 13px;
+}
+
+.input-overlay__button--reset:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.input-overlay__button--reset:active,
+.input-overlay__button--reset.input-overlay__button--active {
+  background: rgba(239, 68, 68, 0.4);
+  border-color: rgba(239, 68, 68, 0.8);
+  color: #ef4444;
+}
+
 @media (max-width: 768px) {
-  .input-overlay {
-    bottom: 16px;
+  .input-overlay--mobile {
+    padding: 16px;
+    height: 120px;
   }
 
   .input-overlay__group {
-    gap: 12px;
+    gap: 10px;
   }
 
   .input-overlay__button {
@@ -90,12 +153,13 @@
 }
 
 @media (max-width: 480px) {
-  .input-overlay {
-    bottom: 12px;
+  .input-overlay--mobile {
+    padding: 12px;
+    height: 110px;
   }
 
   .input-overlay__group {
-    gap: 10px;
+    gap: 8px;
   }
 
   .input-overlay__button {

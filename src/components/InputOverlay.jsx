@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import "../styles/InputOverlay.css";
 
-export default function InputOverlay({ isPlaying }) {
+export default function InputOverlay({ isPlaying, onReset }) {
   const leftBtnRef = useRef(null);
   const rightBtnRef = useRef(null);
   const jumpBtnRef = useRef(null);
@@ -10,6 +10,15 @@ export default function InputOverlay({ isPlaying }) {
     right: false,
     jump: false,
   });
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      )
+    );
+  }, []);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -63,38 +72,81 @@ export default function InputOverlay({ isPlaying }) {
 
   if (!isPlaying) return null;
 
+  // Mobile layout - buttons on corners
+  if (isMobile) {
+    return (
+      <div className="input-overlay input-overlay--mobile">
+        <div className="input-overlay__group input-overlay__group--arrows">
+          <button
+            ref={leftBtnRef}
+            className={`input-overlay__button input-overlay__button--left ${
+              pressedKeys.left ? "input-overlay__button--active" : ""
+            }`}
+            onTouchStart={() => handleTouchStart("left")}
+            onTouchEnd={() => handleTouchEnd("left")}
+          >
+            ◀
+          </button>
+          <button
+            ref={rightBtnRef}
+            className={`input-overlay__button input-overlay__button--right ${
+              pressedKeys.right ? "input-overlay__button--active" : ""
+            }`}
+            onTouchStart={() => handleTouchStart("right")}
+            onTouchEnd={() => handleTouchEnd("right")}
+          >
+            ▶
+          </button>
+        </div>
+        <div className="input-overlay__group input-overlay__group--jump">
+          <button
+            ref={jumpBtnRef}
+            className={`input-overlay__button input-overlay__button--jump ${
+              pressedKeys.jump ? "input-overlay__button--active" : ""
+            }`}
+            onTouchStart={() => handleTouchStart("jump")}
+            onTouchEnd={() => handleTouchEnd("jump")}
+          >
+            JUMP
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop layout - buttons in center bottom
   return (
-    <div className="input-overlay">
+    <div className="input-overlay input-overlay--desktop">
       <div className="input-overlay__group">
         <button
           ref={leftBtnRef}
           className={`input-overlay__button input-overlay__button--left ${
             pressedKeys.left ? "input-overlay__button--active" : ""
           }`}
-          onTouchStart={() => handleTouchStart("left")}
-          onTouchEnd={() => handleTouchEnd("left")}
         >
-          ◀
+          ◀ Left
         </button>
         <button
           ref={rightBtnRef}
           className={`input-overlay__button input-overlay__button--right ${
             pressedKeys.right ? "input-overlay__button--active" : ""
           }`}
-          onTouchStart={() => handleTouchStart("right")}
-          onTouchEnd={() => handleTouchEnd("right")}
         >
-          ▶
+          Right ▶
         </button>
         <button
           ref={jumpBtnRef}
           className={`input-overlay__button input-overlay__button--jump ${
             pressedKeys.jump ? "input-overlay__button--active" : ""
           }`}
-          onTouchStart={() => handleTouchStart("jump")}
-          onTouchEnd={() => handleTouchEnd("jump")}
         >
-          JUMP
+          JUMP (Space)
+        </button>
+        <button
+          className="input-overlay__button input-overlay__button--reset"
+          onClick={onReset}
+        >
+          Reset (R)
         </button>
       </div>
     </div>

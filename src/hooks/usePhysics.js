@@ -4,11 +4,11 @@ import * as planck from "planck-js";
 const SCALE = 30;
 const FLAG_RADIUS = 25;
 
-const WALK_FORCE = 0.2;
-const AIR_CONTROL_FORCE = 0.1;
-const MAX_SPEED = 50;
-const MAX_UP_SPEED = 12;
-const MAX_DOWN_SPEED = 25;
+const WALK_FORCE = 0.5;
+const AIR_CONTROL_FORCE = 3;
+const MAX_SPEED = 60;
+const MAX_UP_SPEED = 20;
+const MAX_DOWN_SPEED = 40;
 const JUMP_IMPULSE = 6;
 const SURF_BOOST = 0.15;
 
@@ -205,7 +205,7 @@ export default function usePhysics(
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, []); // Empty dependency array - runs once
+  }, []);
 
   // Physics loop - only runs when physicsEnabled is true
   useEffect(() => {
