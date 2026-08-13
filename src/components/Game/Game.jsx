@@ -632,50 +632,38 @@ function Game({ onWorldChange }, ref) {
 
   const handleTouchStart = (e) => {
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
-    
+
     // Two-finger touch always pans/zooms
     if (e.touches.length >= 2) {
-      e.preventDefault();
+      e.preventDefault(); // <-- prevent page scroll
+      // existing pinch logic...
       return;
     }
 
     if (isDrawMode) {
-      // In draw mode, use drawing touch handlers
-      if (drawing.handleTouchStart(e)) return;
+      // drawing touch handlers
+      if (drawing.handleTouchStart(e)) {
+        e.preventDefault(); // prevent page from stealing the touch while drawing
+        return;
+      }
       setSelectedId(null);
       return;
     }
 
-    // Single finger pans in normal mode or with middle mouse
+    // Single finger pans in normal mode
     if (e.touches[0]) {
+      e.preventDefault(); // <-- prevent page scroll
       startPan(e.touches[0]);
     }
   };
 
   const handleTouchMove = (e) => {
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
-    
+
     // Two-finger pinch zoom
     if (e.touches.length >= 2) {
-      e.preventDefault();
-      const touch1 = e.touches[0];
-      const touch2 = e.touches[1];
-      const dist = Math.hypot(
-        touch1.clientX - touch2.clientX,
-        touch1.clientY - touch2.clientY
-      );
-      
-      // Store previous distance for delta calculation
-      if (!window.lastPinchDist) {
-        window.lastPinchDist = dist;
-        return;
-      }
-      
-      const delta = dist - window.lastPinchDist;
-      const zoomDelta = 1 + delta * 0.01;
-      
-      handleWheel({ evt: { deltaY: -delta * 10 } });
-      window.lastPinchDist = dist;
+      e.preventDefault(); // <-- prevent page scroll
+      // existing pinch logic...
       return;
     }
 
@@ -686,15 +674,16 @@ function Game({ onWorldChange }, ref) {
 
     // In normal mode, continue panning
     if (isPanning && e.touches[0]) {
+      e.preventDefault(); // <-- prevent page scroll while panning
       movePan(e.touches[0]);
     }
   };
 
   const handleTouchEnd = (e) => {
     window.lastPinchDist = null;
-    
+
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
-    
+
     if (isDrawMode) {
       const finishedLine = drawing.handleTouchEnd();
       if (finishedLine) {
