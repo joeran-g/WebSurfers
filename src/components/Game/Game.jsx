@@ -31,6 +31,7 @@ const DEFAULT_WORLD = [
 const DEFAULT_CAMERA = { x: 0, y: 0, zoom: 1 };
 
 function Game({ onWorldChange }, ref) {
+  // preserved states & refs
   const [physicsEnabled, setPhysicsEnabled] = useState(false);
   const [toolMode, setToolMode] = useState(null);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
@@ -78,10 +79,7 @@ function Game({ onWorldChange }, ref) {
     resetCamera,
   } = useCamera(DEFAULT_CAMERA);
 
-  const drawing = useDrawing(
-    screenToWorld,
-    toolMode === "draw" || toolMode === "draw-obstacle"
-  );
+  const drawing = useDrawing(screenToWorld, toolMode === "draw" || toolMode === "draw-obstacle");
 
   const {
     objects,
@@ -111,27 +109,16 @@ function Game({ onWorldChange }, ref) {
   const { getWorlds, autoSaveWorld, username } = useApi();
   const { theme } = useTheme();
   const isCurrentWeeklyWorld = Boolean(
-    worldId &&
-      currentWeeklyWorldIdRef.current &&
-      worldId === currentWeeklyWorldIdRef.current
+    worldId && currentWeeklyWorldIdRef.current && worldId === currentWeeklyWorldIdRef.current
   );
 
   const getCanvasBg = useCallback(() => {
     return theme === "light" ? "#e0f2fe" : "#1a1f2e";
   }, [theme]);
 
-  const saveWorldData = useWorldPersistence(
-    objects,
-    worldId,
-    isCurrentWeeklyWorld,
-    ownedByMe,
-    autoSaveWorld,
-    isPlaying
-  );
+  const saveWorldData = useWorldPersistence(objects, worldId, isCurrentWeeklyWorld, ownedByMe, autoSaveWorld, isPlaying);
 
-  const canAutoSaveWorld = Boolean(
-    worldId && !isPlaying && (isCurrentWeeklyWorld || ownedByMe)
-  );
+  const canAutoSaveWorld = Boolean(worldId && !isPlaying && (isCurrentWeeklyWorld || ownedByMe));
 
   const attachScoresToObjects = useCallback((worldObjects, scores) => {
     const cleaned = worldObjects.filter((obj) => obj.type !== "scores");
@@ -159,9 +146,7 @@ function Game({ onWorldChange }, ref) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     const centiseconds = Math.floor((ms % 1000) / 10);
-    return `${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}.${centiseconds.toString().padStart(2, "0")}`;
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}.${centiseconds.toString().padStart(2, "0")}`;
   }, []);
 
   const handleSaveScore = useCallback(() => {
@@ -179,14 +164,9 @@ function Game({ onWorldChange }, ref) {
     setObjects(updatedObjects);
     markBaseWorldData(updatedObjects);
 
-    const scoreOnlyWorldData = attachScoresToObjects(
-      persistedWorldRef.current || objects,
-      newScores
-    );
+    const scoreOnlyWorldData = attachScoresToObjects(persistedWorldRef.current || objects, newScores);
 
-    const worldDataToSave = canAutoSaveWorld
-      ? updatedObjects
-      : scoreOnlyWorldData;
+    const worldDataToSave = canAutoSaveWorld ? updatedObjects : scoreOnlyWorldData;
 
     persistedWorldRef.current = worldDataToSave;
     saveWorldData(worldDataToSave, true);
@@ -213,7 +193,7 @@ function Game({ onWorldChange }, ref) {
     }
     clearPendingPositions();
     resetCamera(DEFAULT_CAMERA);
-  }, [clearPendingPositions, resetCamera, setObjects]);
+  }, [clearPendingPositions, resetCamera, setObjects, setSelectedId]);
 
   const startGame = useCallback(() => {
     runStartState.current = JSON.parse(JSON.stringify(objects));
@@ -229,7 +209,7 @@ function Game({ onWorldChange }, ref) {
     startTimeRef.current = Date.now();
     setElapsedTime(0);
     setEndScreenData(null);
-  }, [buildWorld, objects, resetCamera]);
+  }, [buildWorld, objects, resetCamera, setSelectedId]);
 
   const handleContinue = useCallback(() => {
     setPhysicsEnabled(false);
@@ -247,9 +227,7 @@ function Game({ onWorldChange }, ref) {
       const renderObj = obj.id === selectedId && selectedObject ? selectedObject : obj;
       const isPlayer = renderObj.type === "player";
       const playerPos =
-        isPlayer && physicsEnabled && playerBody.current
-          ? playerBody.current.getPosition()
-          : null;
+        isPlayer && physicsEnabled && playerBody?.current ? playerBody.current.getPosition() : null;
 
       const x = playerPos ? playerPos.x * 30 : renderObj.x ?? 0;
       const y = playerPos ? playerPos.y * 30 : renderObj.y ?? 0;
@@ -370,15 +348,8 @@ function Game({ onWorldChange }, ref) {
     ref,
     () => ({
       getCurrentObjects: () => objects,
-      loadWorld: (
-        worldData,
-        name = "Untitled World",
-        id = null,
-        isWeekly = false,
-        owned = false
-      ) => {
+      loadWorld: (worldData, name = "Untitled World", id = null, isWeekly = false, owned = false) => {
         if (!worldData) return;
-
         setPhysicsEnabled(false);
         setIsPlaying(false);
         setGameResult(null);
@@ -416,14 +387,7 @@ function Game({ onWorldChange }, ref) {
         markBaseWorldData(DEFAULT_WORLD);
       },
     }),
-    [
-      objects,
-      setObjects,
-      updateWorldInfo,
-      resetCamera,
-      clearPendingPositions,
-      markBaseWorldData,
-    ]
+    [objects, setObjects, updateWorldInfo, resetCamera, clearPendingPositions, markBaseWorldData]
   );
 
   useEffect(() => {
@@ -469,8 +433,8 @@ function Game({ onWorldChange }, ref) {
     if (!obj) return;
 
     setObjectMenuPos({
-      x: obj.x * camera.zoom + camera.x,
-      y: obj.y * camera.zoom + camera.y + 40,
+      x: (obj.x ?? 0) * camera.zoom + camera.x,
+      y: (obj.y ?? 0) * camera.zoom + camera.y + 40,
     });
   }, [selectedId, selectedObject, objects, camera]);
 
@@ -560,18 +524,18 @@ function Game({ onWorldChange }, ref) {
       .slice(0, 10);
   }, [worldScores]);
 
+  // -------- input handlers (single unified implementations) --------
   const handleMouseDown = (e) => {
     const stage = e.target.getStage();
     if (!stage) return;
 
-    const clickedOnStageBackground =
-      e.target === stage || e.target.name() === "background";
+    const clickedOnStageBackground = e.target === stage || e.target.name() === "background";
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
 
     if (physicsEnabled || gameResult) return;
 
     if (isDrawMode) {
-      if (drawing.handleMouseDown(e)) return;
+      if (drawing.handleMouseDown && drawing.handleMouseDown(e)) return;
       if (clickedOnStageBackground) setSelectedId(null);
       return;
     }
@@ -584,14 +548,9 @@ function Game({ onWorldChange }, ref) {
       return;
     }
 
-    // Middle mouse button pans in any mode
-    if (clickedOnStageBackground && e.evt.button === 1) {
-      startPan(e.evt);
-      return;
-    }
-
-    if (clickedOnStageBackground && e.evt.button === 0) {
-      startPan(e.evt);
+    // Middle mouse or left click pans on background
+    if (clickedOnStageBackground && (e.evt?.button === 1 || e.evt?.button === 0)) {
+      startPan && startPan(e.evt);
       return;
     }
 
@@ -604,18 +563,18 @@ function Game({ onWorldChange }, ref) {
   const handleMouseMove = (e) => {
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
     if (isDrawMode) {
-      drawing.handleMouseMove(e);
+      drawing.handleMouseMove && drawing.handleMouseMove(e);
       return;
     }
     if (isPanning) {
-      movePan(e.evt);
+      movePan && movePan(e.evt);
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e) => {
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
     if (isDrawMode) {
-      const finishedLine = drawing.handleMouseUp();
+      const finishedLine = drawing.handleMouseUp && drawing.handleMouseUp();
       if (finishedLine) {
         if (toolMode === "draw-obstacle") {
           finishedLine.type = "obstacle";
@@ -626,56 +585,75 @@ function Game({ onWorldChange }, ref) {
     }
 
     if (isPanning) {
-      endPan();
+      endPan && endPan();
     }
   };
 
+  // pinch state lives on window.lastPinchDist for compatibility with existing code paths
   const handleTouchStart = (e) => {
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
 
-    // Two-finger touch always pans/zooms
-    if (e.touches.length >= 2) {
-      e.preventDefault(); // <-- prevent page scroll
-      // existing pinch logic...
+    // Two-finger => start pinch (prevent page scroll)
+    if (e.touches && e.touches.length >= 2) {
+      try { e.preventDefault(); } catch (err) {}
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      window.lastPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
       return;
     }
 
     if (isDrawMode) {
-      // drawing touch handlers
-      if (drawing.handleTouchStart(e)) {
-        e.preventDefault(); // prevent page from stealing the touch while drawing
+      if (drawing.handleTouchStart && drawing.handleTouchStart(e)) {
+        try { e.preventDefault(); } catch (err) {}
         return;
       }
       setSelectedId(null);
       return;
     }
 
-    // Single finger pans in normal mode
-    if (e.touches[0]) {
-      e.preventDefault(); // <-- prevent page scroll
-      startPan(e.touches[0]);
+    // Single finger pan on stage (prevent page scroll)
+    if (e.touches && e.touches[0]) {
+      try { e.preventDefault(); } catch (err) {}
+      startPan && startPan(e.touches[0]);
     }
   };
 
   const handleTouchMove = (e) => {
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
 
-    // Two-finger pinch zoom
-    if (e.touches.length >= 2) {
-      e.preventDefault(); // <-- prevent page scroll
-      // existing pinch logic...
+    // Two-finger pinch/zoom
+    if (e.touches && e.touches.length >= 2) {
+      try { e.preventDefault(); } catch (err) {}
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+
+      if (window.lastPinchDist != null) {
+        const delta = dist - window.lastPinchDist;
+        // reuse wheel zoom behavior
+        handleWheel &&
+          handleWheel({
+            evt: {
+              deltaY: -delta * 10,
+              clientX: (t1.clientX + t2.clientX) / 2,
+              clientY: (t1.clientY + t2.clientY) / 2,
+              preventDefault: () => {},
+            },
+          });
+      }
+      window.lastPinchDist = dist;
       return;
     }
 
     if (isDrawMode) {
-      drawing.handleTouchMove(e);
+      drawing.handleTouchMove && drawing.handleTouchMove(e);
       return;
     }
 
-    // In normal mode, continue panning
-    if (isPanning && e.touches[0]) {
-      e.preventDefault(); // <-- prevent page scroll while panning
-      movePan(e.touches[0]);
+    // Single-finger panning
+    if (isPanning && e.touches && e.touches[0]) {
+      try { e.preventDefault(); } catch (err) {}
+      movePan && movePan(e.touches[0]);
     }
   };
 
@@ -685,7 +663,7 @@ function Game({ onWorldChange }, ref) {
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
 
     if (isDrawMode) {
-      const finishedLine = drawing.handleTouchEnd();
+      const finishedLine = drawing.handleTouchEnd && drawing.handleTouchEnd();
       if (finishedLine) {
         if (toolMode === "draw-obstacle") {
           finishedLine.type = "obstacle";
@@ -695,9 +673,8 @@ function Game({ onWorldChange }, ref) {
       return;
     }
 
-    // In normal mode, end panning
     if (isPanning) {
-      endPan();
+      endPan && endPan();
     }
   };
 
@@ -738,7 +715,7 @@ function Game({ onWorldChange }, ref) {
             />
             <Group x={camera.x} y={camera.y} scaleX={camera.zoom} scaleY={camera.zoom}>
               {objects.map(renderObject)}
-              {drawing.lines[0] && (
+              {drawing.lines && drawing.lines[0] && (
                 <LineObj
                   key="draft-line"
                   x={drawing.lines[0].x}
@@ -759,10 +736,7 @@ function Game({ onWorldChange }, ref) {
 
         {!isPlaying && (
           <div className="game__controls">
-            <button
-              className="game__tools-toggle"
-              onClick={() => setToolMenuOpen((prev) => !prev)}
-            >
+            <button className="game__tools-toggle" onClick={() => setToolMenuOpen((prev) => !prev)}>
               Tools
             </button>
             <div className="game__action-row">
@@ -826,9 +800,7 @@ function Game({ onWorldChange }, ref) {
         )}
 
         {physicsEnabled && !gameResult && !isPlaying && (
-          <div className="game__status">
-            Physics enabled — arrow left/right to move, space to jump
-          </div>
+          <div className="game__status">Physics enabled — arrow left/right to move, space to jump</div>
         )}
 
         <InputOverlay isPlaying={isPlaying} onReset={resetRun} />
@@ -838,14 +810,10 @@ function Game({ onWorldChange }, ref) {
         {endScreenData && (
           <div className="game__end-screen">
             <div className="game__end-screen-content">
-              <h2
-                className={`game__end-screen-title game__end-screen-title--${endScreenData.type}`}
-              >
+              <h2 className={`game__end-screen-title game__end-screen-title--${endScreenData.type}`}>
                 {endScreenData.type === "win" ? "YOU WIN!" : "YOU DIED"}
               </h2>
-              <p className="game__end-screen-time">
-                Time: {formatTime(endScreenData.time)}
-              </p>
+              <p className="game__end-screen-time">Time: {formatTime(endScreenData.time)}</p>
               <button className="game__button" onClick={handleContinue}>
                 Continue
               </button>
@@ -859,9 +827,7 @@ function Game({ onWorldChange }, ref) {
             onClick={() => setLeaderboardOpen(!leaderboardOpen)}
           >
             <h4>Top Times</h4>
-            <span className="game__leaderboard-toggle">
-              {leaderboardOpen ? "▼" : "▶"}
-            </span>
+            <span className="game__leaderboard-toggle">{leaderboardOpen ? "▼" : "▶"}</span>
           </button>
           {leaderboardOpen && (
             <div className="game__leaderboard-list">
@@ -870,15 +836,11 @@ function Game({ onWorldChange }, ref) {
                   <div key={i} className="game__leaderboard-entry">
                     <span className="game__leaderboard-rank">#{i + 1}</span>
                     <span className="game__leaderboard-name">{name}</span>
-                    <span className="game__leaderboard-time">
-                      {formatTime(time)}
-                    </span>
+                    <span className="game__leaderboard-time">{formatTime(time)}</span>
                   </div>
                 ))
               ) : (
-                <p style={{ fontSize: "0.85rem", color: "#999" }}>
-                  No times yet
-                </p>
+                <p style={{ fontSize: "0.85rem", color: "#999" }}>No times yet</p>
               )}
             </div>
           )}
