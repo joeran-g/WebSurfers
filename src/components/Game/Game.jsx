@@ -542,23 +542,6 @@ function Game({ onWorldChange }, ref) {
     objectsRef.current = objects;
   }, [objects]);
 
-  // auto-commit disabled: positions are only persisted when user explicitly saves
-
-  // no-wrapped drag handlers here; use useObjects handlers directly
-
-  // pinch tracking ref
-  const pinchRef = useRef(null);
-
-  // keep a ref to latest objects so callbacks scheduled after state updates can read current data
-  const objectsRef = useRef(objects);
-  useEffect(() => {
-    objectsRef.current = objects;
-  }, [objects]);
-
-  // auto-commit disabled: positions are only persisted when user explicitly saves
-
-  // no-wrapped drag handlers here; use useObjects handlers directly
-
   // pinch tracking ref
   const pinchRef = useRef(null);
 
@@ -734,10 +717,6 @@ function Game({ onWorldChange }, ref) {
       endPan && endPan();
     }
   };
-
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
 
   // unified touch handlers with pinch-to-zoom + single-finger pan (keeps draw mode)
   const handleStageTouchStart = (e) => {
