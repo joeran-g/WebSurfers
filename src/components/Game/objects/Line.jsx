@@ -25,6 +25,8 @@ export default function Line({
       hitStrokeWidth={20}
       draggable={draggable}
       onMouseDown={onSelect}
+      onTouchStart={onSelect}
+      onTap={onSelect}
       onDragEnd={onDragEnd}
       lineCap="round"
       lineJoin="round"

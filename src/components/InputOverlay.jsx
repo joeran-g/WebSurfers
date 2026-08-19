@@ -66,36 +66,38 @@ export default function InputOverlay({ isPlaying }) {
   return (
     <div className="input-overlay">
       <div className="input-overlay__group">
-        <button
-          ref={leftBtnRef}
-          className={`input-overlay__button input-overlay__button--left ${
-            pressedKeys.left ? "input-overlay__button--active" : ""
-          }`}
-          onTouchStart={() => handleTouchStart("left")}
-          onTouchEnd={() => handleTouchEnd("left")}
-        >
-          ◀
-        </button>
-        <button
-          ref={rightBtnRef}
-          className={`input-overlay__button input-overlay__button--right ${
-            pressedKeys.right ? "input-overlay__button--active" : ""
-          }`}
-          onTouchStart={() => handleTouchStart("right")}
-          onTouchEnd={() => handleTouchEnd("right")}
-        >
-          ▶
-        </button>
-        <button
-          ref={jumpBtnRef}
-          className={`input-overlay__button input-overlay__button--jump ${
-            pressedKeys.jump ? "input-overlay__button--active" : ""
-          }`}
-          onTouchStart={() => handleTouchStart("jump")}
-          onTouchEnd={() => handleTouchEnd("jump")}
-        >
-          JUMP
-        </button>
+        <div className="input-overlay__arrow_keys"> 
+            <button
+            ref={leftBtnRef}
+            className={`input-overlay__button input-overlay__button--left ${
+                pressedKeys.left ? "input-overlay__button--active" : ""
+            }`}
+            onTouchStart={() => handleTouchStart("left")}
+            onTouchEnd={() => handleTouchEnd("left")}
+            >
+            ◀
+            </button>
+            <button
+            ref={rightBtnRef}
+            className={`input-overlay__button input-overlay__button--right ${
+                pressedKeys.right ? "input-overlay__button--active" : ""
+            }`}
+            onTouchStart={() => handleTouchStart("right")}
+            onTouchEnd={() => handleTouchEnd("right")}
+            >
+            ▶
+            </button>
+        </div>
+            <button
+            ref={jumpBtnRef}
+            className={`input-overlay__button input-overlay__button--jump ${
+                pressedKeys.jump ? "input-overlay__button--active" : ""
+            }`}
+            onTouchStart={() => handleTouchStart("jump")}
+            onTouchEnd={() => handleTouchEnd("jump")}
+            >
+            JUMP
+            </button>
       </div>
     </div>
   );

@@ -7,6 +7,8 @@ export default function Flag({ x, y, draggable, onSelect, onDragEnd }) {
       y={y}
       draggable={draggable}
       onMouseDown={onSelect}
+      onTouchStart={onSelect}
+      onTap={onSelect}
       onDragEnd={onDragEnd}
     >
       <Rect width={5} height={40} fill="white" />
