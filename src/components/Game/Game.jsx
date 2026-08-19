@@ -177,7 +177,7 @@ function Game({ onWorldChange }, ref) {
     } else {
       return;
     }
-
+    
     const updatedObjects = attachScoresToObjects(objects, newScores);
     setWorldScores(newScores);
     setObjects(updatedObjects);
@@ -213,6 +213,8 @@ function Game({ onWorldChange }, ref) {
     setGameResult(null);
     setSelectedId(null);
     setObjectMenuPos(null);
+    // allow scoring again after resetting
+    scoreSavedRef.current = false;
     if (runStartState.current) {
       setObjects(JSON.parse(JSON.stringify(runStartState.current)));
     }
@@ -241,6 +243,8 @@ function Game({ onWorldChange }, ref) {
     setIsPlaying(false);
     setGameResult(null);
     setEndScreenData(null);
+    // allow scoring again after continuing
+    scoreSavedRef.current = false;
     if (runStartState.current) {
       setObjects(JSON.parse(JSON.stringify(runStartState.current)));
     }
