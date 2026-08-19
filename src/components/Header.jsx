@@ -3,6 +3,8 @@ import "../styles/Header.css";
 export default function Header({
   onMenuClick,
   onThemeToggle,
+  onFullScreenToggle,
+  isFullScreen,
   theme,
   worldName = "Untitled World",
   isWeeklyWorld = false,
@@ -21,9 +23,20 @@ export default function Header({
           </div>
         </div>
       </div>
-      <button className="header__menu-button" onClick={onMenuClick}>
+
+      <div className="header__actions">
+        <button
+          className="header__fullscreen-button"
+          onClick={onFullScreenToggle}
+          aria-pressed={isFullScreen}
+        >
+          {isFullScreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+        </button>
+
+        <button className="header__menu-button" onClick={onMenuClick}>
           ☰
-      </button>
+        </button>
+      </div>
     </header>
   );
 }

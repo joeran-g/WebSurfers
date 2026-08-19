@@ -5,12 +5,12 @@ const SCALE = 30;
 const FLAG_RADIUS = 25;
 
 const WALK_FORCE = 0.5;
-const AIR_CONTROL_FORCE = 3;
-const MAX_SPEED = 60;
-const MAX_UP_SPEED = 20;
-const MAX_DOWN_SPEED = 40;
-const JUMP_IMPULSE = 6;
-const SURF_BOOST = 0.15;
+const AIR_CONTROL_FORCE = 5;
+const MAX_SPEED = 100;
+const MAX_UP_SPEED = 30;
+const MAX_DOWN_SPEED = 100;
+const JUMP_IMPULSE = 4;
+const SURF_BOOST = 0.2;
 
 export default function usePhysics(
   objects,
@@ -265,7 +265,7 @@ export default function usePhysics(
         const touching = contactCount.current > 0;
         if (!touching && !gameResult) {
           noContactTimer.current += 1 / 60;
-          if (noContactTimer.current >= 10) {
+          if (noContactTimer.current >= 10 && !gameResult) {
             noContactTimer.current = 0;
             setGameResult("lose");
           }

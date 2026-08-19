@@ -18,6 +18,8 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(true);
 
+  const [isFullScreen, setIsFullScreen] = useState(!!document.fullscreenElement);
+
   const handleWorldChange = useCallback(({ id = null, name = "Untitled World", isWeekly = false, ownedByMe = false }) => {
     setCurrentWorldMeta({
       id,
@@ -38,6 +40,27 @@ export default function App() {
   const getCurrentWorld = () => gameRef.current?.getCurrentObjects?.() || [];
 
   const toggleMenu = () => setMenuOpen((prev) => !prev);
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullScreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  // keep html class in sync for CSS fallback (some mobile browsers)
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isFullScreen) root.classList.add("is-fullscreen");
+    else root.classList.remove("is-fullscreen");
+  }, [isFullScreen]);
 
   useEffect(() => {
     const checkDevice = () => {
@@ -97,6 +120,8 @@ export default function App() {
       <Header
         onMenuClick={() => setMenuOpen((prev) => !prev)}
         onThemeToggle={toggleTheme}
+        onFullScreenToggle={toggleFullScreen}
+        isFullScreen={isFullScreen}
         theme={theme}
         worldName={currentWorldMeta.name}
         isWeeklyWorld={currentWorldMeta.isWeekly}

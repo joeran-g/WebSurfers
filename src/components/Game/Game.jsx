@@ -51,6 +51,7 @@ function Game({ onWorldChange }, ref) {
   const containerRef = useRef();
   const runStartState = useRef(null);
   const persistedWorldRef = useRef(null);
+  const hasTemporaryObjectsRef = useRef(false);
   const startTimeRef = useRef(null);
   const rafRef = useRef(null);
   const baseWorldStringRef = useRef("");
@@ -63,6 +64,8 @@ function Game({ onWorldChange }, ref) {
     baseWorldStringRef.current = JSON.stringify(noScoreWorld);
     baseWorldWithScoresRef.current = JSON.stringify(worldData);
     scoreSavedRef.current = false;
+    // committing baseline clears temporary-object flag
+    hasTemporaryObjectsRef.current = false;
   }, []);
 
   const {
@@ -152,6 +155,22 @@ function Game({ onWorldChange }, ref) {
   const handleSaveScore = useCallback(() => {
     if (!username || !worldId) return;
 
+    // Prevent scoring if the current non-score objects differ from the saved baseline
+    // unless this world auto-saves (owned or current weekly).
+    const currentNoScores = objects.filter((obj) => obj.type !== "scores");
+    const currentNoScoresString = JSON.stringify(currentNoScores);
+    if (!canAutoSaveWorld && baseWorldStringRef.current && currentNoScoresString !== baseWorldStringRef.current) {
+      // Objects differ from saved baseline; do not allow creating a new score.
+      console.warn("Score blocked: world objects differ from saved baseline");
+      return;
+    }
+
+    // Also block scoring if there are temporary objects/pending positions in non-auto-save worlds
+    if (!canAutoSaveWorld && hasTemporaryObjectsRef.current) {
+      console.warn("Score blocked: temporary objects or unsaved positions present");
+      return;
+    }
+
     const newScores = { ...worldScores };
     if (!newScores[username] || elapsedTime < newScores[username]) {
       newScores[username] = elapsedTime;
@@ -170,6 +189,12 @@ function Game({ onWorldChange }, ref) {
 
     persistedWorldRef.current = worldDataToSave;
     saveWorldData(worldDataToSave, true);
+    // update run start state so restarting the run shows the saved scores
+    try {
+      runStartState.current = JSON.parse(JSON.stringify(worldDataToSave));
+    } catch (err) {
+      runStartState.current = worldDataToSave;
+    }
   }, [
     attachScoresToObjects,
     canAutoSaveWorld,
@@ -248,6 +273,8 @@ function Game({ onWorldChange }, ref) {
           } else {
             handleObjectDragEnd(renderObj.id, event);
           }
+          // mark that there are temporary changes when not auto-saving
+          if (!canAutoSaveWorld) hasTemporaryObjectsRef.current = true;
         },
       };
 
@@ -295,7 +322,6 @@ function Game({ onWorldChange }, ref) {
 
         const weekly = worlds.find((world) => world.is_weekly_world);
         currentWeeklyWorldIdRef.current = weekly?.id || null;
-
         const selected = weekly || worlds[0];
         if (!selected?.world_data) return;
 
@@ -331,6 +357,7 @@ function Game({ onWorldChange }, ref) {
 
     if (!baseWorldStringRef.current) {
       baseWorldStringRef.current = currentNoScoresString;
+      baseWorldWithScoresRef.current = JSON.stringify(objects);
       return;
     }
 
@@ -339,7 +366,6 @@ function Game({ onWorldChange }, ref) {
         setObjects((prev) => prev.filter((obj) => obj.type !== "scores"));
       }
       setWorldScores({});
-      baseWorldStringRef.current = currentNoScoresString;
       scoreSavedRef.current = false;
     }
   }, [objects, setObjects]);
@@ -446,14 +472,12 @@ function Game({ onWorldChange }, ref) {
   }, [toolMode]);
 
   useEffect(() => {
-    if (!gameResult) return;
-    setIsPlaying(false);
-    setPhysicsEnabled(false);
+    if (!gameResult) return;    
     setEndScreenData({
       type: gameResult === "win" ? "win" : "death",
       time: elapsedTime,
     });
-  }, [gameResult, elapsedTime]);
+  }, [gameResult]);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -484,10 +508,12 @@ function Game({ onWorldChange }, ref) {
     const handleKeyDown = (e) => {
       if (e.code === "KeyR" && physicsEnabled) {
         e.preventDefault();
+        handleContinue();
         resetRun();
+        return;
       }
 
-      if (e.code === "Space" && !physicsEnabled && !gameResult) {
+      if (e.code === "Space" && !physicsEnabled && !gameResult && !endScreenData) {
         e.preventDefault();
         startGame();
       }
@@ -495,26 +521,12 @@ function Game({ onWorldChange }, ref) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [physicsEnabled, gameResult, resetRun, startGame]);
-
-  useEffect(() => {
-    if (!endScreenData) return;
-    const handleAny = (event) => {
-      event.preventDefault();
-      handleContinue();
-    };
-
-    window.addEventListener("keydown", handleAny);
-    window.addEventListener("mousedown", handleAny);
-    return () => {
-      window.removeEventListener("keydown", handleAny);
-      window.removeEventListener("mousedown", handleAny);
-    };
-  }, [endScreenData, handleContinue]);
+  }, [physicsEnabled, gameResult, resetRun, startGame, endScreenData]);
 
   useEffect(() => {
     if (!endScreenData || endScreenData.type !== "win" || !username || scoreSavedRef.current) return;
     handleSaveScore();
+    setWorldScores((prev) => ({ ...prev, [username]: elapsedTime }));
     scoreSavedRef.current = true;
   }, [endScreenData, handleSaveScore, username]);
 
@@ -524,7 +536,32 @@ function Game({ onWorldChange }, ref) {
       .slice(0, 10);
   }, [worldScores]);
 
-  // -------- input handlers (single unified implementations) --------
+  // keep a ref to latest objects so callbacks scheduled after state updates can read current data
+  const objectsRef = useRef(objects);
+  useEffect(() => {
+    objectsRef.current = objects;
+  }, [objects]);
+
+  // auto-commit disabled: positions are only persisted when user explicitly saves
+
+  // no-wrapped drag handlers here; use useObjects handlers directly
+
+  // pinch tracking ref
+  const pinchRef = useRef(null);
+
+  // keep a ref to latest objects so callbacks scheduled after state updates can read current data
+  const objectsRef = useRef(objects);
+  useEffect(() => {
+    objectsRef.current = objects;
+  }, [objects]);
+
+  // auto-commit disabled: positions are only persisted when user explicitly saves
+
+  // no-wrapped drag handlers here; use useObjects handlers directly
+
+  // pinch tracking ref
+  const pinchRef = useRef(null);
+
   const handleMouseDown = (e) => {
     const stage = e.target.getStage();
     if (!stage) return;
@@ -574,12 +611,22 @@ function Game({ onWorldChange }, ref) {
   const handleMouseUp = (e) => {
     const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
     if (isDrawMode) {
-      const finishedLine = drawing.handleMouseUp && drawing.handleMouseUp();
+      const finishedLine = drawing.handleMouseUp();
       if (finishedLine) {
         if (toolMode === "draw-obstacle") {
           finishedLine.type = "obstacle";
         }
         setObjects((prev) => [...prev, finishedLine]);
+        // created a temporary object if world is not auto-save
+        if (!canAutoSaveWorld) hasTemporaryObjectsRef.current = true;
+        if (canAutoSaveWorld) {
+          setTimeout(() => {
+            const cur = objectsRef.current || [];
+            markBaseWorldData(cur);
+            persistedWorldRef.current = cur;
+            saveWorldData(cur, true);
+          }, 0);
+        }
       }
       return;
     }
@@ -669,6 +716,16 @@ function Game({ onWorldChange }, ref) {
           finishedLine.type = "obstacle";
         }
         setObjects((prev) => [...prev, finishedLine]);
+        // created a temporary object if world is not auto-save
+        if (!canAutoSaveWorld) hasTemporaryObjectsRef.current = true;
+        if (canAutoSaveWorld) {
+          setTimeout(() => {
+            const cur = objectsRef.current || [];
+            markBaseWorldData(cur);
+            persistedWorldRef.current = cur;
+            saveWorldData(cur, true);
+          }, 0);
+        }
       }
       return;
     }
@@ -682,6 +739,135 @@ function Game({ onWorldChange }, ref) {
     navigator.userAgent
   );
 
+  // unified touch handlers with pinch-to-zoom + single-finger pan (keeps draw mode)
+  const handleStageTouchStart = (e) => {
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+    const touches = e.touches || (e.evt && e.evt.touches) || null;
+
+    // pinch start
+    if (touches && touches.length >= 2) {
+      const t1 = touches[0];
+      const t2 = touches[1];
+      pinchRef.current = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      return;
+    }
+
+    if (isDrawMode) {
+      if (drawing.handleTouchStart && drawing.handleTouchStart(e)) return;
+      setSelectedId(null);
+      return;
+    }
+
+    // Only start panning when the touch is on the stage background.
+    // If the touch hits an object, let the object's handlers receive the tap
+    // so selection/menu logic can run (prevents blocking taps on mobile).
+    try {
+      const stage = e.target && e.target.getStage ? e.target.getStage() : null;
+      const clickedOnStageBackground =
+        stage && (e.target === stage || (e.target && e.target.name && e.target.name() === "background"));
+
+      if (touches && touches[0] && clickedOnStageBackground) {
+        startPan(touches[0]);
+        // deselect when tapping background
+        setSelectedId(null);
+        setObjectMenuPos(null);
+      }
+    } catch (err) {
+      // defensive: if Konva event shape differs, fallback to starting pan
+      if (touches && touches[0]) startPan(touches[0]);
+    }
+  };
+
+  const handleStageTouchMove = (e) => {
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+    const touches = e.touches || (e.evt && e.evt.touches) || null;
+
+    // pinch/zoom
+    if (touches && touches.length >= 2) {
+      const t1 = touches[0];
+      const t2 = touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+
+      if (pinchRef.current != null) {
+        const delta = dist - pinchRef.current;
+        // apply zoom around pinch center
+        const centerX = (t1.clientX + t2.clientX) / 2;
+        const centerY = (t1.clientY + t2.clientY) / 2;
+        const ZOOM_PER_PIXEL = 0.004; // conservative
+        const oldZoom = camera.zoom;
+        const factor = 1 + delta * ZOOM_PER_PIXEL;
+        const newZoom = Math.max(0.3, Math.min(2, oldZoom * factor));
+        const mouseTo = {
+          x: (centerX - camera.x) / oldZoom,
+          y: (centerY - camera.y) / oldZoom,
+        };
+        setCamera({
+          x: centerX - mouseTo.x * newZoom,
+          y: centerY - mouseTo.y * newZoom,
+          zoom: newZoom,
+        });
+      }
+
+      pinchRef.current = dist;
+      return;
+    }
+
+    if (isDrawMode) {
+      drawing.handleTouchMove && drawing.handleTouchMove(e);
+      return;
+    }
+
+    if (isPanning && touches && touches[0]) {
+      movePan(touches[0]);
+    }
+  };
+
+  const handleStageTouchEnd = (e) => {
+    const isDrawMode = toolMode === "draw" || toolMode === "draw-obstacle";
+    // reset pinch tracking
+    pinchRef.current = null;
+
+    if (isDrawMode) {
+      const finishedLine = drawing.handleTouchEnd && drawing.handleTouchEnd();
+      if (finishedLine) {
+        if (toolMode === "draw-obstacle") {
+          finishedLine.type = "obstacle";
+        }
+        setObjects((prev) => [...prev, finishedLine]);
+        // created a temporary object if world is not auto-save
+        if (!canAutoSaveWorld) hasTemporaryObjectsRef.current = true;
+        if (canAutoSaveWorld) {
+          setTimeout(() => {
+            const cur = objectsRef.current || [];
+            markBaseWorldData(cur);
+            persistedWorldRef.current = cur;
+            saveWorldData(cur, true);
+          }, 0);
+        }
+      }
+      return;
+    }
+
+    if (isPanning) {
+      endPan();
+    }
+  };
+
+  
+
+
+  // mobile detection (safe)
+  const isMobile =
+    typeof navigator !== "undefined" &&
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+
+  // compute style: desktop uses objectMenuPos; mobile uses fixed CSS positioning
+  const objectMenuStyle = !isMobile && objectMenuPos ? { top: objectMenuPos.y, left: objectMenuPos.x } : undefined;
+  const objectMenuClass = `object-menu ${isMobile ? "object-menu--mobile" : ""}`;
+
+
   return (
     <div className="game">
       <div ref={containerRef} className="game__canvas-wrapper">
@@ -691,9 +877,9 @@ function Game({ onWorldChange }, ref) {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          onTouchStart={handleStageTouchStart}
+          onTouchMove={handleStageTouchMove}
+          onTouchEnd={handleStageTouchEnd}
           onWheel={handleWheel}
           style={{
             cursor: isPanning
@@ -734,26 +920,31 @@ function Game({ onWorldChange }, ref) {
           </Layer>
         </Stage>
 
-        {!isPlaying && (
-          <div className="game__controls">
-            <button className="game__tools-toggle" onClick={() => setToolMenuOpen((prev) => !prev)}>
-              Tools
+        <div className="game__controls">
+          {!isPlaying && (
+          <button
+            className="game__tools-toggle"
+            onClick={() => setToolMenuOpen((prev) => !prev)}
+          >
+            Tools
+          </button>
+          )}
+          <div className="game__action-row">
+            {!isPlaying && (
+            <button onClick={startGame} disabled={physicsEnabled || !!gameResult}>
+              Start 'Space'
             </button>
-            <div className="game__action-row">
-              <button onClick={startGame} disabled={physicsEnabled || !!gameResult}>
-                Start 'Space'
-              </button>
-              <button onClick={resetRun} disabled={!physicsEnabled && !gameResult}>
-                Reset 'R'
-              </button>
-            </div>
+            )}
+            <button id={isPlaying ? "playing-reset-button" : undefined} onClick={resetRun} disabled={!physicsEnabled && !gameResult}>
+              Reset 'R'
+            </button>
           </div>
-        )}
+        </div>
 
         <div className={`tool-menu ${toolMenuOpen ? "tool-menu--open" : ""}`}>
           <button onClick={() => setToolMode("draw")}>Draw Line</button>
           <button onClick={() => setToolMode("draw-obstacle")}>Draw Obstacle</button>
-          <button onClick={() => setToolMode("select")}>Move/Delete Object</button>
+          <button onClick={() => setToolMode("select")}>Move/Delete</button>
           <button
             className="tool-menu__close"
             onClick={() => {
@@ -765,13 +956,27 @@ function Game({ onWorldChange }, ref) {
           </button>
         </div>
 
-        {toolMode === "select" && selectedId && objectMenuPos && (
-          <div className="object-menu" style={{ top: objectMenuPos.y, left: objectMenuPos.x }}>
+        {toolMode === "select" && selectedId && (isMobile || objectMenuPos) && (
+          <div
+            className={`object-menu ${isMobile ? "object-menu--mobile" : "object-menu"}`}
+            style={objectMenuStyle}
+          >
             <button
               onClick={() => {
-                saveSelectedObjectPosition();
-                setSelectedId(null);
-                setObjectMenuPos(null);
+                  saveSelectedObjectPosition();
+                  // persist immediately for auto-save worlds
+                  if (canAutoSaveWorld) {
+                    setTimeout(() => {
+                      const cur = objectsRef.current || [];
+                      markBaseWorldData(cur);
+                      persistedWorldRef.current = cur;
+                      saveWorldData(cur, true);
+                    }, 0);
+                  }
+                          // saving a position commits the change; clear temporary marker
+                          hasTemporaryObjectsRef.current = false;
+                  setSelectedId(null);
+                  setObjectMenuPos(null);
               }}
             >
               Save position
@@ -789,6 +994,15 @@ function Game({ onWorldChange }, ref) {
               <button
                 onClick={() => {
                   deleteSelectedObject();
+                  // persist delete for auto-save worlds
+                  if (canAutoSaveWorld) {
+                    setTimeout(() => {
+                      const cur = objectsRef.current || [];
+                      markBaseWorldData(cur);
+                      persistedWorldRef.current = cur;
+                      saveWorldData(cur, true);
+                    }, 0);
+                  }
                   setSelectedId(null);
                   setObjectMenuPos(null);
                 }}
@@ -810,8 +1024,10 @@ function Game({ onWorldChange }, ref) {
         {endScreenData && (
           <div className="game__end-screen">
             <div className="game__end-screen-content">
-              <h2 className={`game__end-screen-title game__end-screen-title--${endScreenData.type}`}>
-                {endScreenData.type === "win" ? "YOU WIN!" : "YOU DIED"}
+              <h2
+                className={`game__end-screen-title game__end-screen-title--${endScreenData.type}`}
+              >
+                {endScreenData.type === "win" ? "YOU WON!" : "YOU DIED"}
               </h2>
               <p className="game__end-screen-time">Time: {formatTime(endScreenData.time)}</p>
               <button className="game__button" onClick={handleContinue}>

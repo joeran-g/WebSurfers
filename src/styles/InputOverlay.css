@@ -19,30 +19,11 @@
   pointer-events: auto;
 }
 
-/* Mobile layout - corners */
-.input-overlay--mobile {
-  bottom: 0;
-  left: 0;
-  right: 0;
+.input-overlay__arrow_keys {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 20px;
-  height: 140px;
-}
-
-.input-overlay__group {
-  display: flex;
-  gap: 12px;
-  pointer-events: auto;
-}
-
-.input-overlay__group--arrows {
-  justify-content: flex-start;
-}
-
-.input-overlay__group--jump {
-  justify-content: flex-end;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
 }
 
 .input-overlay__button {
@@ -131,14 +112,20 @@
 }
 
 @media (max-width: 768px) {
-  .input-overlay--mobile {
-    padding: 16px;
-    height: 120px;
+  .input-overlay {
+    left: 50%;
+    bottom: 16px;
   }
 
   .input-overlay__group {
-    gap: 10px;
+    gap: 12px;    
   }
+
+  .input-overlay__arrow_keys {
+    display: flex;
+    gap: 18px;
+    margin-right: 180px;
+}
 
   .input-overlay__button {
     width: 52px;
@@ -148,28 +135,178 @@
   }
 
   .input-overlay__button--jump {
-    width: 72px;
+    width: 150px;
   }
 }
 
 @media (max-width: 480px) {
-  .input-overlay--mobile {
-    padding: 12px;
-    height: 110px;
+  .input-overlay {
+    bottom: 12px;
+    left: 50%;
   }
 
   .input-overlay__group {
-    gap: 8px;
+    gap: 10px;
   }
 
+  .input-overlay__arrow_keys {
+    display: flex;
+    gap: 10px;
+    margin-right: 100px;
+}
+
   .input-overlay__button {
-    width: 48px;
-    height: 48px;
-    font-size: 11px;
+    width: 52px;
+    height: 52px;
+    font-size: 12px;
+    border-radius: 10px;
   }
 
   .input-overlay__button--jump {
-    width: 64px;
+    width: 90px;
     font-size: 11px;
+  }
+}
+
+/* Fullscreen layout: spread arrow keys left and jump right for thumbs */
+:fullscreen .input-overlay,
+:-webkit-full-screen .input-overlay,
+:-ms-fullscreen .input-overlay {
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  opacity: 1;
+  transition: all 160ms ease;
+  width: min(1100px, 96%);
+  max-width: 1100px;
+}
+
+:fullscreen .input-overlay__group,
+:-webkit-full-screen .input-overlay__group,
+:-ms-fullscreen .input-overlay__group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  padding: 0 6%;
+  box-sizing: border-box;
+}
+
+/* keep arrows left, take available space */
+:fullscreen .input-overlay__arrow_keys,
+:-webkit-full-screen .input-overlay__arrow_keys,
+:-ms-fullscreen .input-overlay__arrow_keys {
+  gap: 18px;
+  margin-right: 0;
+  justify-content: flex-start;
+  flex: 1 1 auto;
+}
+
+/* jump/button group stays on the right and is tappable */
+:fullscreen .input-overlay__button--jump,
+:-webkit-full-screen .input-overlay__button--jump,
+:-ms-fullscreen .input-overlay__button--jump {
+  width: 160px;
+  height: 66px;
+  border-radius: 14px;
+  flex: 0 0 auto;
+  margin-left: 12px;
+}
+
+/* enlarge individual buttons for thumbs */
+:fullscreen .input-overlay__button,
+:-webkit-full-screen .input-overlay__button,
+:-ms-fullscreen .input-overlay__button {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  font-size: 16px;
+}
+
+/* compact fullscreen tweaks for very small screens */
+@media (max-width: 480px) {
+  :fullscreen .input-overlay__group,
+  :-webkit-full-screen .input-overlay__group,
+  :-ms-fullscreen .input-overlay__group {
+    padding: 0 4%;
+    gap: 14px;
+  }
+
+  :fullscreen .input-overlay__button,
+  :-webkit-full-screen .input-overlay__button,
+  :-ms-fullscreen .input-overlay__button {
+    width: 60px;
+    height: 60px;
+  }
+
+  :fullscreen .input-overlay__button--jump,
+  :-webkit-full-screen .input-overlay__button--jump,
+  :-ms-fullscreen .input-overlay__button--jump {
+    width: 130px;
+    height: 60px;
+  }
+}
+
+/* Fallback class-based fullscreen styles (mirrors :fullscreen rules) */
+.is-fullscreen .input-overlay {
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  opacity: 1;
+  transition: all 160ms ease;
+  width: min(1100px, 96%);
+  max-width: 1100px;
+}
+
+.is-fullscreen .input-overlay__group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  padding: 0 6%;
+  box-sizing: border-box;
+}
+
+.is-fullscreen .input-overlay__arrow_keys {
+  gap: 18px;
+  margin-right: 0;
+  justify-content: flex-start;
+  flex: 1 1 auto;
+}
+
+.is-fullscreen .input-overlay__button--jump {
+  width: 160px;
+  height: 66px;
+  border-radius: 14px;
+  flex: 0 0 auto;
+  margin-left: 12px;
+}
+
+.is-fullscreen .input-overlay__button {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  font-size: 16px;
+}
+
+/* compact fallback for very small screens */
+@media (max-width: 480px) {
+  .is-fullscreen .input-overlay__group {
+    padding: 0 4%;
+    gap: 14px;
+  }
+
+  .is-fullscreen .input-overlay__button {
+    width: 60px;
+    height: 60px;
+  }
+
+  .is-fullscreen .input-overlay__button--jump {
+    width: 130px;
+    height: 60px;
   }
 }

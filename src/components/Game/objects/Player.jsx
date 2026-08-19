@@ -32,6 +32,8 @@ export default function Player({
       y={y}
       draggable={draggable}
       onMouseDown={onSelect}
+      onTouchStart={onSelect}
+      onTap={onSelect}
       onDragEnd={onDragEnd}
     >
       <Circle

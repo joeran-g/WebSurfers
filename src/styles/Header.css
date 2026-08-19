@@ -104,6 +104,56 @@
   letter-spacing: 0.02em;
 }
 
+.header__fullscreen-button {
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-color);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 150ms ease, transform 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
+}
+
+.header__fullscreen-button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+.header__fullscreen-button[aria-pressed="true"] {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.12), rgba(59, 130, 246, 0.08));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08) inset;
+}
+
+/* Keep text from overflowing on narrow viewports */
+.header__fullscreen-button {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Slight theme tweaks */
+[data-theme="dark"] .header__fullscreen-button {
+  background: rgba(255, 255, 255, 0.03);
+}
+[data-theme="light"] .header__fullscreen-button {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* Compact on very small screens (show shorter text without breaking layout) */
+@media (max-width: 520px) {
+  .header__fullscreen-button {
+    padding: 6px 8px;
+    font-size: 0.88rem;
+    max-width: 110px;
+  }
+}
+
 [data-theme="dark"] .header {
   background: #111827;
 }
