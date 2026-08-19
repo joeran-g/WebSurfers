@@ -4,6 +4,13 @@
   pointer-events: none;
 }
 
+.input-overlay__group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto;
+}
+
 /* Desktop layout - centered bottom */
 .input-overlay--desktop {
   bottom: 20px;
@@ -113,7 +120,7 @@
 
 @media (max-width: 768px) {
   .input-overlay {
-    left: 50%;
+    left: 20%;
     bottom: 16px;
   }
 
@@ -142,7 +149,7 @@
 @media (max-width: 480px) {
   .input-overlay {
     bottom: 12px;
-    left: 50%;
+    left: 20%;
   }
 
   .input-overlay__group {

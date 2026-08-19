@@ -72,8 +72,10 @@ export default function InputOverlay({ isPlaying, onReset }) {
 
   if (!isPlaying) return null;
 
+  const overlayClass = `input-overlay ${isMobile ? "" : "input-overlay--desktop"}`;
+
   return (
-    <div className="input-overlay">
+    <div className={overlayClass}>
       <div className="input-overlay__group">
         <div className="input-overlay__arrow_keys"> 
             <button
@@ -83,6 +85,8 @@ export default function InputOverlay({ isPlaying, onReset }) {
             }`}
             onTouchStart={() => handleTouchStart("left")}
             onTouchEnd={() => handleTouchEnd("left")}
+            onMouseDown={() => handleTouchStart("left")}
+            onMouseUp={() => handleTouchEnd("left")}
             >
             ◀
             </button>
@@ -93,6 +97,8 @@ export default function InputOverlay({ isPlaying, onReset }) {
             }`}
             onTouchStart={() => handleTouchStart("right")}
             onTouchEnd={() => handleTouchEnd("right")}
+            onMouseDown={() => handleTouchStart("right")}
+            onMouseUp={() => handleTouchEnd("right")}
             >
             ▶
             </button>
@@ -104,6 +110,8 @@ export default function InputOverlay({ isPlaying, onReset }) {
             }`}
             onTouchStart={() => handleTouchStart("jump")}
             onTouchEnd={() => handleTouchEnd("jump")}
+            onMouseDown={() => handleTouchStart("jump")}
+            onMouseUp={() => handleTouchEnd("jump")}
             >
             JUMP
             </button>

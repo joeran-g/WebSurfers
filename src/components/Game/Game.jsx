@@ -52,6 +52,9 @@ function Game({ onWorldChange }, ref) {
   const runStartState = useRef(null);
   const persistedWorldRef = useRef(null);
   const hasTemporaryObjectsRef = useRef(false);
+  const prevCameraRef = useRef(null);
+
+  
   const startTimeRef = useRef(null);
   const rafRef = useRef(null);
   const baseWorldStringRef = useRef("");
@@ -118,6 +121,8 @@ function Game({ onWorldChange }, ref) {
   const getCanvasBg = useCallback(() => {
     return theme === "light" ? "#e0f2fe" : "#1a1f2e";
   }, [theme]);
+
+  // prevCameraRef holds camera state before entering play; use resetCamera(prevCameraRef.current) to restore
 
   const saveWorldData = useWorldPersistence(objects, worldId, isCurrentWeeklyWorld, ownedByMe, autoSaveWorld, isPlaying);
 
@@ -219,36 +224,74 @@ function Game({ onWorldChange }, ref) {
       setObjects(JSON.parse(JSON.stringify(runStartState.current)));
     }
     clearPendingPositions();
-    resetCamera(DEFAULT_CAMERA);
+    // restore camera to the state saved before the run started if one was saved
+    if (prevCameraRef.current) resetCamera(prevCameraRef.current);
   }, [clearPendingPositions, resetCamera, setObjects, setSelectedId]);
 
   const startGame = useCallback(() => {
+    // remember current camera (clone) so we can restore it after the run
+    prevCameraRef.current = { ...(camera || DEFAULT_CAMERA) };
+    try {
+      console.log("Game.startGame: saved prevCamera", prevCameraRef.current);
+    } catch (e) {}
     runStartState.current = JSON.parse(JSON.stringify(objects));
     setSelectedId(null);
     setObjectMenuPos(null);
     setToolMode(null);
     setToolMenuOpen(false);
     setGameResult(null);
-    resetCamera(DEFAULT_CAMERA);
+    // center camera on player for the run
+    try {
+      const zoom = camera?.zoom || DEFAULT_CAMERA.zoom || 1;
+      let px = null;
+      let py = null;
+      if (playerBody && playerBody.current && typeof playerBody.current.getPosition === "function") {
+        const pos = playerBody.current.getPosition();
+        if (pos) {
+          px = pos.x * 30;
+          py = pos.y * 30;
+        }
+      }
+      if (px === null || py === null) {
+        const p = objects.find((o) => o.type === "player");
+        if (p) {
+          px = p.x ?? 0;
+          py = p.y ?? 0;
+        }
+      }
+      if (px != null && py != null && stageSize && stageSize.width) {
+        const x = Math.round(stageSize.width / 2 - px * zoom);
+        const y = Math.round(stageSize.height / 2 - py * zoom);
+        setCamera({ x, y, zoom });
+      }
+    } catch (err) {
+      // ignore
+    }
     buildWorld();
     setPhysicsEnabled(true);
     setIsPlaying(true);
     startTimeRef.current = Date.now();
     setElapsedTime(0);
     setEndScreenData(null);
-  }, [buildWorld, objects, resetCamera, setSelectedId]);
+  }, [buildWorld, objects, resetCamera, setSelectedId, camera]);
 
   const handleContinue = useCallback(() => {
     setPhysicsEnabled(false);
     setIsPlaying(false);
     setGameResult(null);
     setEndScreenData(null);
+    try {
+      console.log("Game.resetRun: restoring camera", prevCameraRef.current);
+    } catch (e) {}
     // allow scoring again after continuing
     scoreSavedRef.current = false;
     if (runStartState.current) {
       setObjects(JSON.parse(JSON.stringify(runStartState.current)));
     }
-    resetCamera(DEFAULT_CAMERA);
+    try {
+      console.log("Game.handleContinue: restoring camera", prevCameraRef.current);
+    } catch (e) {}
+    if (prevCameraRef.current) resetCamera(prevCameraRef.current);
   }, [resetCamera, setObjects]);
 
   const renderObject = useCallback(
@@ -394,7 +437,8 @@ function Game({ onWorldChange }, ref) {
         setObjectMenuPos(null);
         runStartState.current = JSON.parse(JSON.stringify(worldData));
         persistedWorldRef.current = worldData;
-        resetCamera(DEFAULT_CAMERA);
+        // restore previous camera view when loading a world if available, otherwise use default
+        resetCamera(prevCameraRef.current || DEFAULT_CAMERA);
         setInitialLoadDone(true);
         markBaseWorldData(worldData);
       },
@@ -412,7 +456,8 @@ function Game({ onWorldChange }, ref) {
         setObjectMenuPos(null);
         runStartState.current = JSON.parse(JSON.stringify(DEFAULT_WORLD));
         persistedWorldRef.current = DEFAULT_WORLD;
-        resetCamera(DEFAULT_CAMERA);
+        // restore previous camera view when creating blank world if available, otherwise use default
+        resetCamera(prevCameraRef.current || DEFAULT_CAMERA);
         setInitialLoadDone(true);
         markBaseWorldData(DEFAULT_WORLD);
       },
