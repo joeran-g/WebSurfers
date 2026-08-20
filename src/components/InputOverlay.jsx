@@ -55,25 +55,11 @@ export default function InputOverlay({ isPlaying, onReset, onInputDown, onInputU
   const handleTouchStart = (key) => {
     setPressedKeys((prev) => ({ ...prev, [key]: true }));
     if (onInputDown) onInputDown(key);
-    try {
-      const event = new KeyboardEvent("keydown", {
-        key: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : " ",
-        code: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : "Space",
-      });
-      window.dispatchEvent(event);
-    } catch (e) {}
   };
 
   const handleTouchEnd = (key) => {
     setPressedKeys((prev) => ({ ...prev, [key]: false }));
     if (onInputUp) onInputUp(key);
-    try {
-      const event = new KeyboardEvent("keyup", {
-        key: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : " ",
-        code: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : "Space",
-      });
-      window.dispatchEvent(event);
-    } catch (e) {}
   };
 
   if (!isPlaying) return null;
@@ -89,10 +75,10 @@ export default function InputOverlay({ isPlaying, onReset, onInputDown, onInputU
             className={`input-overlay__button input-overlay__button--left ${
                 pressedKeys.left ? "input-overlay__button--active" : ""
             }`}
-            onTouchStart={() => handleTouchStart("left")}
-            onTouchEnd={() => handleTouchEnd("left")}
-            onMouseDown={() => handleTouchStart("left")}
-            onMouseUp={() => handleTouchEnd("left")}
+            onPointerDown={(e) => { e.preventDefault(); handleTouchStart("left"); }}
+            onPointerUp={(e) => { e.preventDefault(); handleTouchEnd("left"); }}
+            onPointerCancel={() => handleTouchEnd("left")}
+            onPointerLeave={() => handleTouchEnd("left")}
             >
             ◀
             </button>
@@ -101,10 +87,10 @@ export default function InputOverlay({ isPlaying, onReset, onInputDown, onInputU
             className={`input-overlay__button input-overlay__button--right ${
                 pressedKeys.right ? "input-overlay__button--active" : ""
             }`}
-            onTouchStart={() => handleTouchStart("right")}
-            onTouchEnd={() => handleTouchEnd("right")}
-            onMouseDown={() => handleTouchStart("right")}
-            onMouseUp={() => handleTouchEnd("right")}
+            onPointerDown={(e) => { e.preventDefault(); handleTouchStart("right"); }}
+            onPointerUp={(e) => { e.preventDefault(); handleTouchEnd("right"); }}
+            onPointerCancel={() => handleTouchEnd("right")}
+            onPointerLeave={() => handleTouchEnd("right")}
             >
             ▶
             </button>
@@ -114,10 +100,10 @@ export default function InputOverlay({ isPlaying, onReset, onInputDown, onInputU
             className={`input-overlay__button input-overlay__button--jump ${
                 pressedKeys.jump ? "input-overlay__button--active" : ""
             }`}
-            onTouchStart={() => handleTouchStart("jump")}
-            onTouchEnd={() => handleTouchEnd("jump")}
-            onMouseDown={() => handleTouchStart("jump")}
-            onMouseUp={() => handleTouchEnd("jump")}
+            onPointerDown={(e) => { e.preventDefault(); handleTouchStart("jump"); }}
+            onPointerUp={(e) => { e.preventDefault(); handleTouchEnd("jump"); }}
+            onPointerCancel={() => handleTouchEnd("jump")}
+            onPointerLeave={() => handleTouchEnd("jump")}
             >
             JUMP
             </button>

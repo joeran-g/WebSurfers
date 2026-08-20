@@ -224,6 +224,12 @@ function Game({ onWorldChange }, ref) {
       setObjects(JSON.parse(JSON.stringify(runStartState.current)));
     }
     clearPendingPositions();
+    // clear any held on-screen inputs
+    try {
+      setInputUp && setInputUp("left");
+      setInputUp && setInputUp("right");
+      setInputUp && setInputUp("jump");
+    } catch (e) {}
     // restore camera to the state saved before the run started if one was saved
     if (prevCameraRef.current) resetCamera(prevCameraRef.current);
   }, [clearPendingPositions, resetCamera, setObjects, setSelectedId]);
@@ -288,6 +294,12 @@ function Game({ onWorldChange }, ref) {
     if (runStartState.current) {
       setObjects(JSON.parse(JSON.stringify(runStartState.current)));
     }
+    // clear any held on-screen inputs
+    try {
+      setInputUp && setInputUp("left");
+      setInputUp && setInputUp("right");
+      setInputUp && setInputUp("jump");
+    } catch (e) {}
     try {
       console.log("Game.handleContinue: restoring camera", prevCameraRef.current);
     } catch (e) {}
