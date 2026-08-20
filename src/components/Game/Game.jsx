@@ -102,7 +102,7 @@ function Game({ onWorldChange }, ref) {
     clearPendingPositions,
   } = useObjects(DEFAULT_WORLD);
 
-  const { buildWorld, playerBody } = usePhysics(
+  const { buildWorld, playerBody, setInputDown, setInputUp } = usePhysics(
     objects,
     physicsEnabled,
     stageSize,
@@ -1045,7 +1045,7 @@ function Game({ onWorldChange }, ref) {
           <div className="game__status">Physics enabled — arrow left/right to move, space to jump</div>
         )}
 
-        <InputOverlay isPlaying={isPlaying} onReset={resetRun} />
+        <InputOverlay isPlaying={isPlaying} onReset={resetRun} onInputDown={setInputDown} onInputUp={setInputUp} />
 
         {isPlaying && <div className="game__timer">{formatTime(elapsedTime)}</div>}
 

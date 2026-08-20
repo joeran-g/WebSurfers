@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import "../styles/InputOverlay.css";
 
-export default function InputOverlay({ isPlaying, onReset }) {
+export default function InputOverlay({ isPlaying, onReset, onInputDown, onInputUp }) {
   const leftBtnRef = useRef(null);
   const rightBtnRef = useRef(null);
   const jumpBtnRef = useRef(null);
@@ -54,20 +54,26 @@ export default function InputOverlay({ isPlaying, onReset }) {
 
   const handleTouchStart = (key) => {
     setPressedKeys((prev) => ({ ...prev, [key]: true }));
-    const event = new KeyboardEvent("keydown", {
-      key: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : " ",
-      code: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : "Space",
-    });
-    window.dispatchEvent(event);
+    if (onInputDown) onInputDown(key);
+    try {
+      const event = new KeyboardEvent("keydown", {
+        key: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : " ",
+        code: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : "Space",
+      });
+      window.dispatchEvent(event);
+    } catch (e) {}
   };
 
   const handleTouchEnd = (key) => {
     setPressedKeys((prev) => ({ ...prev, [key]: false }));
-    const event = new KeyboardEvent("keyup", {
-      key: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : " ",
-      code: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : "Space",
-    });
-    window.dispatchEvent(event);
+    if (onInputUp) onInputUp(key);
+    try {
+      const event = new KeyboardEvent("keyup", {
+        key: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : " ",
+        code: key === "left" ? "ArrowLeft" : key === "right" ? "ArrowRight" : "Space",
+      });
+      window.dispatchEvent(event);
+    } catch (e) {}
   };
 
   if (!isPlaying) return null;

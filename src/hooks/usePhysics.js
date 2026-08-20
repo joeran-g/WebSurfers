@@ -28,7 +28,9 @@ export default function usePhysics(
   const contactCount = useRef(0);
   const noContactTimer = useRef(0);
   const deathFragmentsSpawned = useRef(false);
-  const keys = useRef({ left: false, right: false, jump: false });
+  const keys = useRef({ left: false, right: false, jumpHeld: false });
+  // tracks whether on-screen buttons are currently held (pointer down)
+  const inputHeldRef = useRef({ left: false, right: false, jump: false });
   const bodiesRef = useRef(new Map());
 
   const toWorld = useCallback((pixels) => pixels / SCALE, []);
@@ -96,6 +98,10 @@ export default function usePhysics(
         const manifold = contact.getWorldManifold();
         if (manifold && manifold.normal) {
           lastContactNormal.current = manifold.normal;
+        }
+        // if jump button is held on overlay, re-arm jump on contact so holding jump auto-jumps
+        if (inputHeldRef.current.jump) {
+          keys.current.jumpHeld = true;
         }
       }
 
@@ -187,7 +193,7 @@ export default function usePhysics(
       if (event.key === "ArrowLeft") keys.current.left = true;
       if (event.key === "ArrowRight") keys.current.right = true;
       if (event.key === " ") {
-        keys.current.jump = true;
+        keys.current.jumpHeld = true;
         event.preventDefault();
       }
     };
@@ -195,7 +201,7 @@ export default function usePhysics(
     const handleKeyUp = (event) => {
       if (event.key === "ArrowLeft") keys.current.left = false;
       if (event.key === "ArrowRight") keys.current.right = false;
-      if (event.key === " ") keys.current.jump = false;
+      if (event.key === " ") keys.current.jumpHeld = false;
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -205,6 +211,21 @@ export default function usePhysics(
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
+  }, []);
+
+  // programmatic input API for on-screen controls
+  const setInputDown = useCallback((key) => {
+    inputHeldRef.current[key] = true;
+    if (key === "left") keys.current.left = true;
+    if (key === "right") keys.current.right = true;
+    if (key === "jump") keys.current.jumpHeld = true;
+  }, []);
+
+  const setInputUp = useCallback((key) => {
+    inputHeldRef.current[key] = false;
+    if (key === "left") keys.current.left = false;
+    if (key === "right") keys.current.right = false;
+    if (key === "jump") keys.current.jumpHeld = false;
   }, []);
 
   // Physics loop - only runs when physicsEnabled is true
@@ -250,14 +271,14 @@ export default function usePhysics(
           playerBody.current.setLinearVelocity(planck.Vec2(vel.x, MAX_DOWN_SPEED));
         }
 
-        if (keys.current.jump && isGrounded.current) {
+        if (keys.current.jumpHeld && isGrounded.current) {
           playerBody.current.applyLinearImpulse(
             planck.Vec2(0, -JUMP_IMPULSE),
             playerBody.current.getWorldCenter(),
             true
           );
           isGrounded.current = false;
-          keys.current.jump = false;
+          keys.current.jumpHeld = false;
         }
       }
 
@@ -312,5 +333,7 @@ export default function usePhysics(
     buildWorld,
     worldRef,
     playerBody,
+    setInputDown,
+    setInputUp,
   };
 }
