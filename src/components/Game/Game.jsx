@@ -1057,6 +1057,7 @@ function Game({ onWorldChange }, ref) {
               Save position
             </button>
             {/* Editor controls for boost / bounce_pad */}
+            <div className="object-controls-desktop">
             {selectedObject.type === 'boost' && (
               <div style={{ marginTop: 8 }}>
                 <label style={{ display: 'block', marginBottom: 6 }}>Rotation:
@@ -1117,6 +1118,50 @@ function Game({ onWorldChange }, ref) {
                     hasTemporaryObjectsRef.current = true;
                   }} style={{ marginLeft: 8, width: 140 }} />
                 </label>
+              </div>
+            )}
+            </div>
+
+            {/* Mobile compact controls shown in the fixed bottom row */}
+            {isMobile && selectedObject && (selectedObject.type === 'boost' || selectedObject.type === 'bounce_pad') && (
+              <div className="object-menu__mobile-controls">
+                {selectedObject.type === 'boost' ? (
+                  <>
+                    <label>Rotation<input type="range" min={-180} max={180} value={selectedObject.rotation ?? 0} onChange={(e) => {
+                      const v = Number(e.target.value || 0);
+                      setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, rotation: v } : o));
+                      hasTemporaryObjectsRef.current = true;
+                    }} /></label>
+                    <label>Width<input type="range" min={20} max={400} value={selectedObject.width ?? 120} onChange={(e) => {
+                      const v = Number(e.target.value || 120);
+                      setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, width: v } : o));
+                      hasTemporaryObjectsRef.current = true;
+                    }} /></label>
+                    <label>Strength<input type="range" min={0.1} max={6} step={0.1} value={selectedObject.strength ?? 1.2} onChange={(e) => {
+                      const v = Number(e.target.value || 1.2);
+                      setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, strength: v } : o));
+                      hasTemporaryObjectsRef.current = true;
+                    }} /></label>
+                  </>
+                ) : (
+                  <>
+                    <label>Rotation<input type="range" min={-180} max={180} value={selectedObject.rotation ?? 0} onChange={(e) => {
+                      const v = Number(e.target.value || 0);
+                      setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, rotation: v } : o));
+                      hasTemporaryObjectsRef.current = true;
+                    }} /></label>
+                    <label>Length<input type="range" min={20} max={600} value={selectedObject.length ?? 120} onChange={(e) => {
+                      const v = Number(e.target.value || 120);
+                      setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, length: v } : o));
+                      hasTemporaryObjectsRef.current = true;
+                    }} /></label>
+                    <label>Bounce<input type="range" min={0} max={3} step={0.1} value={selectedObject.bounce ?? 1.0} onChange={(e) => {
+                      const v = Number(e.target.value || 1.0);
+                      setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, bounce: v } : o));
+                      hasTemporaryObjectsRef.current = true;
+                    }} /></label>
+                  </>
+                )}
               </div>
             )}
             <button

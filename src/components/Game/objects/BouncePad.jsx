@@ -14,7 +14,7 @@ export default function BouncePad({ x, y, rotation = 0, length = 120, selected, 
       onTap={() => onSelect && onSelect()}
     >
       <Line points={[-half, 0, half, 0]} stroke={"#7c3aed"} strokeWidth={6} strokeCap={'round'} />
-      <Text text={'BOUNCE'} fontSize={12} x={-half} y={-18} fill={'#a78bfa'} />
+      <Text text={''} fontSize={12} x={-half} y={-18} fill={'#a78bfa'} />
       {/* transform handles hidden to avoid accidental dragging; use sliders in object menu */}
     </Group>
   );

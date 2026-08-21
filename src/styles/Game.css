@@ -193,6 +193,36 @@ body,
   box-shadow: 0 18px 40px rgba(0,0,0,0.5);
 }
 
+/* Mobile: hide desktop sliders and show compact mobile controls next to buttons */
+.object-menu--mobile .object-controls-desktop {
+  display: none;
+}
+
+.object-menu__mobile-controls {
+  position: fixed;
+  left:150%;
+  bottom: 20%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.5);
+  align-items: center;
+  background-color: #000000;
+}
+
+.object-menu__mobile-controls label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 11px;
+}
+
+.object-menu__mobile-controls input[type="range"] {
+  width: 96px;
+  height: 6px;
+}
+
 .object-menu button {
   border: none;
   border-radius: 4px;
