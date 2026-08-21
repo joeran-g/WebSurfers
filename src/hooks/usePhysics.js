@@ -31,6 +31,7 @@ export default function usePhysics(
   const keys = useRef({ left: false, right: false, jumpHeld: false });
   // tracks whether on-screen buttons are currently held (pointer down)
   const inputHeldRef = useRef({ left: false, right: false, jump: false });
+  const activeBoostsRef = useRef(new Map());
   const bodiesRef = useRef(new Map());
 
   const toWorld = useCallback((pixels) => pixels / SCALE, []);
@@ -122,6 +123,46 @@ export default function usePhysics(
           setGameResult("win");
         }
       }
+
+      // Boost pad: either single impulse or add to active boosts for continuous application
+      if (
+        (aData?.type === "boost" && bodyB === playerBody.current) ||
+        (bData?.type === "boost" && bodyA === playerBody.current)
+      ) {
+        const boostData = aData?.type === "boost" ? aData : bData;
+        try {
+          const id = boostData.id ?? `${boostData.rotation}_${boostData.strength}`;
+          if (boostData.continuous !== false) {
+            activeBoostsRef.current.set(id, boostData);
+          } else {
+            const rot = boostData.rotation || 0; // radians
+            const strength = typeof boostData.strength === 'number' ? boostData.strength : 1.2;
+            const imp = planck.Vec2(Math.cos(rot) * strength, Math.sin(rot) * strength);
+            playerBody.current.applyLinearImpulse(imp, playerBody.current.getWorldCenter(), true);
+          }
+        } catch (e) {}
+      }
+
+      // Bounce pad: reflect player's velocity based on contact normal and bounce factor
+      if (
+        (aData?.type === "bounce_pad" && bodyB === playerBody.current) ||
+        (bData?.type === "bounce_pad" && bodyA === playerBody.current)
+      ) {
+        const padData = aData?.type === "bounce_pad" ? aData : bData;
+        try {
+          const manifold = contact.getWorldManifold();
+          if (manifold && manifold.normal && playerBody.current) {
+            const normal = manifold.normal;
+            const vel = playerBody.current.getLinearVelocity();
+            const vdot = vel.x * normal.x + vel.y * normal.y;
+            const bounce = typeof padData.bounce === 'number' ? padData.bounce : 1.0;
+            // v' = v - (1 + bounce) * (v·n) * n
+            const vx = vel.x - (1 + bounce) * vdot * normal.x;
+            const vy = vel.y - (1 + bounce) * vdot * normal.y;
+            playerBody.current.setLinearVelocity(planck.Vec2(vx, vy));
+          }
+        } catch (e) {}
+      }
     });
 
     world.on("end-contact", (contact) => {
@@ -139,6 +180,15 @@ export default function usePhysics(
         if (contactCount.current === 0) {
           isGrounded.current = false;
         }
+      }
+
+      // remove boost from active map when leaving sensor
+      const aData = bodyA.getUserData?.();
+      const bData = bodyB.getUserData?.();
+      if ((aData?.type === 'boost' && bodyB === playerBody.current) || (bData?.type === 'boost' && bodyA === playerBody.current)) {
+        const boostData = aData?.type === 'boost' ? aData : bData;
+        const id = boostData.id ?? `${boostData.rotation}_${boostData.strength}`;
+        activeBoostsRef.current.delete(id);
       }
     });
 
@@ -182,6 +232,30 @@ export default function usePhysics(
           });
         }
         body.setUserData({ id: obj.id, type: obj.type });
+        bodiesRef.current.set(obj.id, body);
+      } else if (obj.type === "boost") {
+        // boost: static sensor rectangle with rotation and strength
+        const rot = (obj.rotation ?? 0) * (Math.PI / 180);
+        const w = toWorld(obj.width ?? 120);
+        const h = toWorld(obj.height ?? 40);
+        const body = world.createBody({ type: "static", position: planck.Vec2(toWorld(obj.x), toWorld(obj.y)) });
+        const fixture = body.createFixture(planck.Box(w / 2, h / 2), { isSensor: true });
+        body.setTransform(body.getPosition(), rot);
+        body.setUserData({ id: obj.id, type: 'boost', id: obj.id, rotation: rot, strength: obj.strength ?? 1.2, continuous: obj.continuous !== false });
+        bodiesRef.current.set(obj.id, body);
+      } else if (obj.type === "bounce_pad") {
+        // bounce pad: static edge rotated by rotation with given length
+        const rot = (obj.rotation ?? 0) * (Math.PI / 180);
+        const len = toWorld(obj.length ?? 120);
+        const cx = toWorld(obj.x);
+        const cy = toWorld(obj.y);
+        const dx = Math.cos(rot) * (len / 2);
+        const dy = Math.sin(rot) * (len / 2);
+        const p1 = planck.Vec2(cx - dx, cy - dy);
+        const p2 = planck.Vec2(cx + dx, cy + dy);
+        const body = world.createBody({ type: 'static' });
+        body.createFixture(planck.Edge(p1, p2), { friction: 0.05 });
+        body.setUserData({ id: obj.id, type: 'bounce_pad', bounce: obj.bounce ?? 1.0 });
         bodiesRef.current.set(obj.id, body);
       }
     });
@@ -240,6 +314,23 @@ export default function usePhysics(
 
       if (playerBody.current) {
         const vel = playerBody.current.getLinearVelocity();
+
+        // apply continuous boost impulses if player is inside boost sensors
+        if (activeBoostsRef.current.size > 0) {
+          activeBoostsRef.current.forEach((b) => {
+            try {
+              const rot = b.rotation || 0;
+              const strength = typeof b.strength === 'number' ? b.strength : 1.2;
+              // small per-frame impulse to feel continuous
+              const impMag = strength * 0.3;
+              playerBody.current.applyLinearImpulse(
+                planck.Vec2(Math.cos(rot) * impMag, Math.sin(rot) * impMag),
+                playerBody.current.getWorldCenter(),
+                true
+              );
+            } catch (e) {}
+          });
+        }
 
         if (keys.current.left) {
           playerBody.current.applyForceToCenter(

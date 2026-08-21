@@ -14,6 +14,8 @@ import InputOverlay from "../InputOverlay";
 import Player from "./objects/Player";
 import Flag from "./objects/Flag";
 import LineObj from "./objects/Line";
+import Boost from "./objects/Boost";
+import BouncePad from "./objects/BouncePad";
 import useCamera from "../../hooks/useCamera";
 import useDrawing from "../../hooks/useDrawing";
 import usePhysics from "../../hooks/usePhysics";
@@ -237,9 +239,7 @@ function Game({ onWorldChange }, ref) {
   const startGame = useCallback(() => {
     // remember current camera (clone) so we can restore it after the run
     prevCameraRef.current = { ...(camera || DEFAULT_CAMERA) };
-    try {
-      console.log("Game.startGame: saved prevCamera", prevCameraRef.current);
-    } catch (e) {}
+    // saved prevCamera for restore on reset/continue
     runStartState.current = JSON.parse(JSON.stringify(objects));
     setSelectedId(null);
     setObjectMenuPos(null);
@@ -286,9 +286,7 @@ function Game({ onWorldChange }, ref) {
     setIsPlaying(false);
     setGameResult(null);
     setEndScreenData(null);
-    try {
-      console.log("Game.resetRun: restoring camera", prevCameraRef.current);
-    } catch (e) {}
+    // restoring camera (if available)
     // allow scoring again after continuing
     scoreSavedRef.current = false;
     if (runStartState.current) {
@@ -300,9 +298,7 @@ function Game({ onWorldChange }, ref) {
       setInputUp && setInputUp("right");
       setInputUp && setInputUp("jump");
     } catch (e) {}
-    try {
-      console.log("Game.handleContinue: restoring camera", prevCameraRef.current);
-    } catch (e) {}
+    // restoring camera (if available)
     if (prevCameraRef.current) resetCamera(prevCameraRef.current);
   }, [resetCamera, setObjects]);
 
@@ -334,6 +330,8 @@ function Game({ onWorldChange }, ref) {
           }
           // mark that there are temporary changes when not auto-saving
           if (!canAutoSaveWorld) hasTemporaryObjectsRef.current = true;
+            // select object after moving so object menu appears
+            if (toolMode === "select") setSelectedId(renderObj.id);
         },
       };
 
@@ -357,6 +355,26 @@ function Game({ onWorldChange }, ref) {
             stroke="red"
           />
         );
+          if (renderObj.type === "boost")
+            return (
+              <Boost
+                key={renderObj.id}
+                {...commonProps}
+                rotation={renderObj.rotation ?? 0}
+                width={renderObj.width ?? 120}
+                height={renderObj.height ?? 40}
+                strength={renderObj.strength ?? 1.2}
+              />
+            );
+          if (renderObj.type === "bounce_pad")
+            return (
+              <BouncePad
+                key={renderObj.id}
+                {...commonProps}
+                rotation={renderObj.rotation ?? 0}
+                length={renderObj.length ?? 120}
+              />
+            );
       return null;
     },
     [
@@ -985,6 +1003,23 @@ function Game({ onWorldChange }, ref) {
           <button onClick={() => setToolMode("draw")}>Draw Line</button>
           <button onClick={() => setToolMode("draw-obstacle")}>Draw Obstacle</button>
           <button onClick={() => setToolMode("select")}>Move/Delete</button>
+          <button onClick={() => {
+            // add a boost object at center
+            const id = `boost_${Date.now()}`;
+            const cx = (stageSize.width || 800) / 2;
+            const cy = (stageSize.height || 600) / 2;
+            const newObj = { id, type: 'boost', x: cx, y: cy, rotation: 0, width: 120, height: 40, strength: 1.2 };
+            setObjects((prev) => [...prev, newObj]);
+            hasTemporaryObjectsRef.current = true;
+          }}>Add Boost</button>
+          <button onClick={() => {
+            const id = `bounce_${Date.now()}`;
+            const cx = (stageSize.width || 800) / 2;
+            const cy = (stageSize.height || 600) / 2;
+            const newObj = { id, type: 'bounce_pad', x: cx, y: cy, rotation: 0, length: 120, bounce: 1.0 };
+            setObjects((prev) => [...prev, newObj]);
+            hasTemporaryObjectsRef.current = true;
+          }}>Add Bounce Pad</button>
           <button
             className="tool-menu__close"
             onClick={() => {
@@ -996,7 +1031,7 @@ function Game({ onWorldChange }, ref) {
           </button>
         </div>
 
-        {toolMode === "select" && selectedId && (isMobile || objectMenuPos) && (
+        {toolMode === "select" && selectedObject && (isMobile || objectMenuPos) && (
           <div
             className={`object-menu ${isMobile ? "object-menu--mobile" : "object-menu"}`}
             style={objectMenuStyle}
@@ -1021,6 +1056,69 @@ function Game({ onWorldChange }, ref) {
             >
               Save position
             </button>
+            {/* Editor controls for boost / bounce_pad */}
+            {selectedObject.type === 'boost' && (
+              <div style={{ marginTop: 8 }}>
+                <label style={{ display: 'block', marginBottom: 6 }}>Rotation:
+                    <input type="range" min={-180} max={180} value={selectedObject.rotation ?? 0} onChange={(e) => {
+                      const v = Number(e.target.value || 0);
+                      setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, rotation: v } : o));
+                      hasTemporaryObjectsRef.current = true;
+                    }} style={{ marginLeft: 8, width: 140 }} />
+                    <span style={{ marginLeft: 8, minWidth: 40, display: 'inline-block' }}>{Math.round(selectedObject.rotation ?? 0)}°</span>
+                </label>
+                <label style={{ display: 'block', marginBottom: 6 }}>Width:
+                  <input type="range" min={20} max={400} value={selectedObject.width ?? 120} onChange={(e) => {
+                    const v = Number(e.target.value || 120);
+                    setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, width: v } : o));
+                    hasTemporaryObjectsRef.current = true;
+                  }} style={{ marginLeft: 8, width: 140 }} />
+                  <span style={{ marginLeft: 8, minWidth: 40, display: 'inline-block' }}>{Math.round(selectedObject.width ?? 120)}px</span>
+                </label>
+                <label style={{ display: 'block', marginBottom: 6 }}>Height:
+                  <input type="range" min={8} max={200} value={selectedObject.height ?? 40} onChange={(e) => {
+                    const v = Number(e.target.value || 40);
+                    setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, height: v } : o));
+                    hasTemporaryObjectsRef.current = true;
+                  }} style={{ marginLeft: 8, width: 140 }} />
+                  <span style={{ marginLeft: 8, minWidth: 40, display: 'inline-block' }}>{Math.round(selectedObject.height ?? 40)}px</span>
+                </label>
+                <label style={{ display: 'block', marginBottom: 6 }}>Strength:
+                  <input type="range" min={0.1} max={6} step={0.1} value={selectedObject.strength ?? 1.2} onChange={(e) => {
+                    const v = Number(e.target.value || 1.2);
+                    setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, strength: v } : o));
+                    hasTemporaryObjectsRef.current = true;
+                  }} style={{ marginLeft: 8, width: 140 }} />
+                  <span style={{ marginLeft: 8, minWidth: 40, display: 'inline-block' }}>{(selectedObject.strength ?? 1.2).toFixed(1)}</span>
+                </label>
+                {/* continuous behavior removed; boosts default to continuous mode */}
+              </div>
+            )}
+            {selectedObject && selectedObject.type === 'bounce_pad' && (
+              <div style={{ marginTop: 8 }}>
+                <label style={{ display: 'block', marginBottom: 6 }}>Rotation:
+                  <input type="range" min={-180} max={180} value={selectedObject.rotation ?? 0} onChange={(e) => {
+                    const v = Number(e.target.value || 0);
+                    setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, rotation: v } : o));
+                    hasTemporaryObjectsRef.current = true;
+                  }} style={{ marginLeft: 8, width: 140 }} />
+                </label>
+                <label style={{ display: 'block', marginBottom: 6 }}>Length:
+                  <input type="range" min={20} max={600} value={selectedObject.length ?? 120} onChange={(e) => {
+                    const v = Number(e.target.value || 120);
+                    setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, length: v } : o));
+                    hasTemporaryObjectsRef.current = true;
+                  }} style={{ marginLeft: 8, width: 140 }} />
+                </label>
+                <label style={{ display: 'block', marginBottom: 6 }}>Bounce:
+                  <input type="range" min={0} max={3} step={0.1} value={selectedObject.bounce ?? 1.0} onChange={(e) => {
+                    const v = Number(e.target.value || 1.0);
+                    setObjects((prev) => prev.map(o => o.id === selectedObject.id ? { ...o, bounce: v } : o));
+                    hasTemporaryObjectsRef.current = true;
+                  }} style={{ marginLeft: 8, width: 140 }} />
+                </label>
+              </div>
+            )}
             <button
               onClick={() => {
                 clearPendingPosition();
