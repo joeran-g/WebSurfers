@@ -1002,7 +1002,6 @@ function Game({ onWorldChange }, ref) {
         <div className={`tool-menu ${toolMenuOpen ? "tool-menu--open" : ""}`}>
           <button onClick={() => setToolMode("draw")}>Draw Line</button>
           <button onClick={() => setToolMode("draw-obstacle")}>Draw Obstacle</button>
-          <button onClick={() => setToolMode("select")}>Move/Delete</button>
           <button onClick={() => {
             // add a boost object at center
             const id = `boost_${Date.now()}`;
@@ -1020,6 +1019,7 @@ function Game({ onWorldChange }, ref) {
             setObjects((prev) => [...prev, newObj]);
             hasTemporaryObjectsRef.current = true;
           }}>Add Bounce Pad</button>
+          <button onClick={() => setToolMode("select")}>Move/Delete</button>
           <button
             className="tool-menu__close"
             onClick={() => {

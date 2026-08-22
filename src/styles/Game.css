@@ -115,6 +115,7 @@ body,
   pointer-events: none;
   transition: opacity 200ms ease, transform 200ms ease;
   z-index: 20;
+
 }
 
 .tool-menu--open {
@@ -555,3 +556,12 @@ body,
   position: fixed;
   top: 20%;
   left: 20px;}
+
+/* Make tool and mobile object menus scrollable on small screens */
+.tool-menu--open {
+  max-height: 50vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* momentum on iOS */
+  overscroll-behavior: contain; /* prevent page scroll bubbling */
+  touch-action: pan-y; /* allow vertical panning inside menu */
+}
